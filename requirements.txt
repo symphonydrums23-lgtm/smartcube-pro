@@ -6,3 +6,4 @@ passlib[bcrypt]
 python-multipart
 jinja2
 PyJWT
+python-dotenv
