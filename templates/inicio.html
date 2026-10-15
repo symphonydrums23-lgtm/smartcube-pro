@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartCube</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:Inter,Arial}
+img{width:180px;object-fit:contain}
+.touch{margin-top:30px;color:#888;font-size:13px;font-weight:600;letter-spacing:0.5px;animation:pulse 1.8s infinite}
+.nome{margin-top:10px;color:#FF6A00;font-size:14px;font-weight:800;text-transform:uppercase;text-align:center}
+@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+</style>
+</head>
+<body onclick="location.href='/tablet'">
+<img id="logoImg" src="logo.png" onerror="this.src='logo.dashboard.png'">
+<div class="touch">Toque na tela para iniciar</div>
+<div class="nome" id="condNome">CARREGANDO CONDOMÍNIO...</div>
+<script>
+async function carregar(){
+  const el=document.getElementById('condNome');
+  const logo=document.getElementById('logoImg');
+  try{
+    const wl=JSON.parse(localStorage.getItem('sc_whitelabel')||'{}');
+    if(wl.nome){ el.innerText=wl.nome.toUpperCase(); if(wl.logo1) logo.src=wl.logo1; return; }
+  }catch(e){}
+  const id=localStorage.getItem('condominio_selecionado')||'1';
+  try{
+    const r=await fetch('/api/condominios/'+id); const c=await r.json();
+    if(c.nome) el.innerText=c.nome.toUpperCase();
+  }catch(e){ el.innerText='SMART CUBE'; }
+}
+carregar();
+</script>
+</body>
+</html>

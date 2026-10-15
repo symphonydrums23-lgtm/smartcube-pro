@@ -1,0 +1,7 @@
+seu-dominio.com.br {
+    reverse_proxy app:8000
+}
+
+www.seu-dominio.com.br {
+    redir https://seu-dominio.com.br{uri}
+}

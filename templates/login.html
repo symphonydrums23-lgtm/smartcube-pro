@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login - Smart Cube</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Inter,sans-serif}
+body{display:flex;min-height:100vh}
+.left{width:42%;background:#151821;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;padding:40px}
+.left img{width:180px;margin-bottom:20px}
+.right{flex:1;background:#fff;display:flex;align-items:center;justify-content:center;padding:40px}
+.box{width:100%;max-width:380px}
+.input{width:100%;padding:14px;border:1px solid #e5e7eb;border-radius:10px;margin-top:10px;font-size:14px;background:#f9fafb}
+.btn{width:100%;padding:14px;background:#FF6A00;color:#fff;border:0;border-radius:10px;margin-top:18px;font-weight:800;cursor:pointer;font-size:14px}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;padding:10px;border-radius:8px;font-size:12px;margin-top:12px;display:none}
+</style>
+</head>
+<body>
+<div class="left">
+  <img src="logo.dashboard.png" onerror="this.src='logo.png'">
+  <div style="margin-top:16px;font-size:13px;color:#9ca3af;text-align:center;line-height:1.6">Sistema inteligente de armários para<br>condomínios.<br>Faça login para acessar o painel.</div>
+</div>
+<div class="right">
+  <div class="box">
+    <b style="font-size:22px">Bem-vindo de volta</b>
+    <div style="font-size:12px;color:#6b7280;margin-top:4px">Entre com suas credenciais</div>
+    <input id="user" class="input" placeholder="Usuário" value="admin">
+    <input id="pass" class="input" placeholder="Senha" type="password">
+    <button id="btnLogin" class="btn" onclick="doLogin()">ENTRAR NO PAINEL →</button>
+    <div id="err" class="err"></div>
+    <div style="font-size:10px;color:#888;margin-top:12px;text-align:center">© 2026 Smart Cube • v6.1 Seguro</div>
+  </div>
+</div>
+<script>
+const API_BASE = '';
+
+function showErr(msg){
+  const el = document.getElementById('err');
+  el.style.display='block';
+  el.innerText = msg;
+}
+
+async function doLogin(){
+  const btn = document.getElementById('btnLogin');
+  const u = document.getElementById('user').value.trim();
+  const p = document.getElementById('pass').value.trim();
+  
+  if(!u || !p){ showErr('Digite usuário e senha'); return; }
+  
+  btn.disabled = true;
+  btn.innerText = 'ENTRANDO...';
+  document.getElementById('err').style.display='none';
+
+  try{
+    const r = await fetch(API_BASE+'/api/auth/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({usuario: u, senha: p})
+    });
+    
+    const j = await r.json();
+    
+    if(!r.ok){
+      showErr(j.detail || 'Usuário ou senha inválido');
+      btn.disabled = false;
+      btn.innerText = 'ENTRAR NO PAINEL →';
+      return;
+    }
+    
+    if(j.ok && j.token){
+      localStorage.removeItem('sc_token');
+      localStorage.setItem('sc_token', j.token);
+      localStorage.setItem('sc_user', u);
+      // BLINDAGEM: salva no cookie pro servidor validar
+      document.cookie = "sc_token=" + j.token + "; path=/; max-age=28800; SameSite=Lax";
+      // Vai pro dashboard com token
+      window.location.replace('/dashboard?token=' + encodeURIComponent(j.token));
+    }else{
+      showErr('Erro no login - token não retornado');
+      btn.disabled = false;
+      btn.innerText = 'ENTRAR NO PAINEL →';
+    }
+  }catch(e){
+    showErr('Erro de conexão com servidor :5000 - '+e.message);
+    btn.disabled = false;
+    btn.innerText = 'ENTRAR NO PAINEL →';
+  }
+}
+
+document.getElementById('pass').addEventListener('keydown', e=>{
+  if(e.key==='Enter') doLogin();
+});
+
+(async ()=>{
+  const t = localStorage.getItem('sc_token');
+  if(t && t.length>10){
+    try{
+      const r = await fetch(API_BASE+'/api/auth/verificar',{headers:{'Authorization':'Bearer '+t}});
+      if(r.ok){
+        document.cookie = "sc_token=" + t + "; path=/; max-age=28800; SameSite=Lax";
+        window.location.replace('/dashboard?token=' + encodeURIComponent(t));
+      } else {
+        localStorage.removeItem('sc_token');
+      }
+    }catch{ localStorage.removeItem('sc_token'); }
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Retirar - SmartCube</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif}
+body{background:#08080a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:12px;position:relative;overflow:hidden}
+body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-50%);width:700px;height:500px;background:radial-gradient(circle,#FF6A00 0%,transparent 70%);opacity:.18;filter:blur(60px);pointer-events:none}
+.wrap{width:100%;max-width:380px;z-index:1;display:flex;align-items:center;justify-content:center}
+.card{width:100%;background:#fff;border-radius:28px;padding:24px 20px 18px;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 24px 70px rgba(0,0,0,.7);color:#000;text-align:center;position:relative;overflow:hidden;animation:pop .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,transparent,#FF6A00,#FF9A44,transparent)}
+.icon-circle{width:56px;height:56px;background:linear-gradient(135deg,#FFF3E0,#FFE4CC);border:1px solid rgba(255,106,0,.14);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 14px;box-shadow:0 8px 20px rgba(255,106,0,.14)}
+.h1{font-size:21px;font-weight:900;line-height:1.15;letter-spacing:-.5px;margin-bottom:18px}
+.field input{width:100%;padding:16px;border:2px solid #efeff2;border-radius:14px;font-size:22px;font-weight:900;background:#f7f7f8;outline:none;text-align:center;letter-spacing:8px;transition:.22s}
+.field input:focus{border-color:#FF6A00;background:#fff;box-shadow:0 0 0 4px rgba(255,106,0,.13)}
+.field input::placeholder{color:#b9b9c0;letter-spacing:8px}
+.btn-primary{width:100%;padding:14px;background:linear-gradient(135deg,#FF6A00 0%,#FF8533 100%);color:#fff;border:none;border-radius:14px;font-size:12.5px;font-weight:900;cursor:pointer;margin-top:14px;letter-spacing:.6px;box-shadow:0 10px 24px rgba(255,106,0,.35);transition:.18s}
+.btn-primary:active{transform:scale(.98)}
+.btn-primary:disabled{opacity:.5}
+.btn-sec{width:100%;padding:12px;background:#0f0f10;color:#FF6A00;border:1px solid #222;border-radius:12px;font-size:10.5px;font-weight:800;cursor:pointer;margin-top:8px;letter-spacing:.5px}
+.status-box{background:linear-gradient(135deg,#E8F5E9,#EAF6EB);border:1px solid #c8e6c9;border-radius:14px;padding:14px;text-align:center;margin:14px 0}.status-box b{color:#2e7d32;font-size:12px;line-height:1.4}
+.error-box{background:#fde8e8;border:1px solid #f5c6c6;border-radius:12px;padding:10px;text-align:center;margin:12px 0 0;display:none}.error-box b{color:#c62828;font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="c1">
+    <div class="icon-circle">🔑</div>
+    <div class="h1">Digite o código<br>de retirada</div>
+    <div class="field"><input id="codigo" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="off"></div>
+    <div class="error-box" id="err"><b id="errTxt"></b></div>
+    <button class="btn-primary" id="btnRet" onclick="retirar()">ABRIR MEU BOX →</button>
+    <button class="btn-sec" onclick="location.href='/tablet'">VOLTAR AO INÍCIO</button>
+  </div>
+  <div class="card" id="c2" style="display:none">
+    <div class="icon-circle">✅</div>
+    <div class="h1">Box aberto!</div>
+    <div class="status-box"><b id="msgBox">🔓 BOX ABERTO<br>RETIRE SUA ENCOMENDA</b></div>
+    <button class="btn-primary" onclick="location.href='/'">CONCLUIR ✓</button>
+  </div>
+</div>
+<script>
+async function retirar(){
+  const cod=document.getElementById('codigo').value.trim();
+  const btn=document.getElementById('btnRet');
+  const err=document.getElementById('err');
+  if(cod.length<4){ err.style.display='block'; document.getElementById('errTxt').innerText='Digite o código completo'; return; }
+  err.style.display='none'; btn.disabled=true; btn.innerText='ABRINDO...';
+  try{
+    const condId=localStorage.getItem('condominio_selecionado')||'1';
+    const resp=await fetch('/api/retirar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo:cod,condominio_id:condId})});
+    const data=await resp.json();
+    if(!resp.ok) throw new Error(data.detail||'Código inválido');
+    document.getElementById('msgBox').innerHTML=`🔓 BOX ${data.box||'07'} ABERTO<br>RETIRE SUA ENCOMENDA`;
+    document.getElementById('c1').style.display='none'; document.getElementById('c2').style.display='block';
+    setTimeout(()=>location.href='/',10000);
+  }catch(e){
+    err.style.display='block'; document.getElementById('errTxt').innerText=e.message; btn.disabled=false; btn.innerText='ABRIR MEU BOX →';
+  }
+}
+document.getElementById('codigo').addEventListener('keydown',e=>{ if(e.key==='Enter') retirar(); });
+</script>
+</body>
+</html>

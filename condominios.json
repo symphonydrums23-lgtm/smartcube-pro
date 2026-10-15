@@ -1,0 +1,18 @@
+[
+  {
+    "id": "d7f86814",
+    "nome": "Plaza Del Sol",
+    "cnpj": "18257874000194",
+    "endereco": "",
+    "armario_num": "ARM-24685",
+    "total_boxes": 16,
+    "data_inicio": "2026-10-14",
+    "periodo": "12 meses",
+    "valor_mensal": "800,00",
+    "valor_instalacao": "",
+    "status": "ativo",
+    "vencimento": "",
+    "qtd_moradores": 0,
+    "criado_em": "2026-10-14T11:36:20.290365"
+  }
+]
