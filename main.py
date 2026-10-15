@@ -11,9 +11,9 @@ load_dotenv()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5000", "http://127.0.0.1:5000"],
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -62,9 +62,10 @@ def save_json(path, data):
     with open(full,'w',encoding='utf-8') as f:
         json.dump(data,f,ensure_ascii=False,indent=2)
 
-# ========= SEGURANÇA V7.0 - BLINDADO REMOTO + TABLET SEPARADO =========
+# ========= SEGURANÇA V7.1 - TABLET BLINDADO WEB =========
 ADMIN_USER = os.getenv("SMARTCUBE_USER", "admin")
 ADMIN_PASS = os.getenv("SMARTCUBE_ADMIN_PASS", "SmartCube@2026")
+TABLET_TOKEN = os.getenv("SMARTCUBE_TABLET_TOKEN", "SC_TABLET_2026_SECURE")
 
 ARQ_TOKENS = "tokens.json"
 TOKENS_VALIDOS = {}
@@ -108,7 +109,6 @@ def is_token_valid(token: str) -> bool:
         return False
     return True
 
-# DEPENDENCY QUE BLINDA TODAS AS APIs SENSÍVEIS
 def requer_auth(request: Request, authorization: str = Header(None)):
     token = ""
     if authorization and "Bearer" in authorization:
@@ -165,6 +165,17 @@ def no_cache_html(path):
         return HTMLResponse(content=content, headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
     return HTMLResponse(f"<h1>Arquivo nao encontrado: {path}</h1>", status_code=404)
 
+def acesso_negado_html():
+    html = """
+    <!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+    <title>Acesso Negado - SmartCube</title>
+    <style>body{background:#0f0f0f;color:#fff;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
+   .box{max-width:400px;padding:40px;border:1px solid #ff4444;border-radius:16px;background:#1a1a1a}
+    h1{color:#ff4444} a{color:#ff8c00;text-decoration:none;margin-top:20px;display:inline-block;border:1px solid #ff8c00;padding:10px 20px;border-radius:8px}
+    </style></head><body><div class='box'><h1>🔒 Acesso Negado</h1><p>Esta tela é restrita ao dispositivo físico do armário SmartCube.</p><p>Acesso pela web não permitido por segurança.</p><a href='/site'>Voltar ao Site</a> <a href='/login'>Login Dashboard</a></div></body></html>
+    """
+    return HTMLResponse(content=html, status_code=403, headers={"Cache-Control": "no-cache"})
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -196,22 +207,10 @@ def serve_any_png(arquivo: str):
     if os.path.exists(path): return FileResponse(path)
     raise HTTPException(404)
 
-# ================== ROTAS PÚBLICAS - SITE + TABLET ==================
+# ================== ROTAS PÚBLICAS - SITE + LOGIN + DASHBOARD (INTACTAS) ==================
 @app.get("/", response_class=HTMLResponse)
 async def inicio_page(request: Request):
     return no_cache_html(get_path("inicio.html"))
-
-@app.get("/tablet", response_class=HTMLResponse)
-async def tablet_menu_page(request: Request):
-    return no_cache_html(get_path("tablet.html"))
-
-@app.get("/retirada", response_class=HTMLResponse)
-async def retirada_page(request: Request):
-    return no_cache_html(get_path("retirada.html"))
-
-@app.get("/entrega", response_class=HTMLResponse)
-async def entrega_page(request: Request):
-    return no_cache_html(get_path("entrega.html"))
 
 @app.get("/site", response_class=HTMLResponse)
 def site_page(): return no_cache_html(get_path("site.html"))
@@ -222,7 +221,46 @@ def site_html(): return no_cache_html(get_path("site.html"))
 @app.get("/login", response_class=HTMLResponse)
 def login_page(): return no_cache_html(get_path("login.html"))
 
-# ================== ROTA BLINDADA - DASHBOARD ==================
+# ================== ROTAS TABLET - AGORA BLINDADAS WEB ==================
+@app.get("/tablet", response_class=HTMLResponse)
+async def tablet_menu_page(request: Request):
+    # Verifica se é o tablet físico ou admin logado
+    tablet_tok = request.headers.get("x-tablet-token") or request.query_params.get("tablet_token") or ""
+    admin_tok = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
+    auth_h = request.headers.get("authorization") or ""
+    if auth_h and "Bearer" in auth_h:
+        admin_tok = auth_h.replace("Bearer ","").strip()
+
+    if tablet_tok == TABLET_TOKEN:
+        return no_cache_html(get_path("tablet.html"))
+    if admin_tok and is_token_valid(admin_tok):
+        return no_cache_html(get_path("tablet.html"))
+    # Se não tem token válido, é acesso web -> Acesso Negado
+    return acesso_negado_html()
+
+@app.get("/retirada", response_class=HTMLResponse)
+async def retirada_page(request: Request):
+    tablet_tok = request.headers.get("x-tablet-token") or request.query_params.get("tablet_token") or ""
+    admin_tok = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
+    auth_h = request.headers.get("authorization") or ""
+    if auth_h and "Bearer" in auth_h:
+        admin_tok = auth_h.replace("Bearer ","").strip()
+    if tablet_tok == TABLET_TOKEN or (admin_tok and is_token_valid(admin_tok)):
+        return no_cache_html(get_path("retirada.html"))
+    return acesso_negado_html()
+
+@app.get("/entrega", response_class=HTMLResponse)
+async def entrega_page(request: Request):
+    tablet_tok = request.headers.get("x-tablet-token") or request.query_params.get("tablet_token") or ""
+    admin_tok = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
+    auth_h = request.headers.get("authorization") or ""
+    if auth_h and "Bearer" in auth_h:
+        admin_tok = auth_h.replace("Bearer ","").strip()
+    if tablet_tok == TABLET_TOKEN or (admin_tok and is_token_valid(admin_tok)):
+        return no_cache_html(get_path("entrega.html"))
+    return acesso_negado_html()
+
+# ================== ROTA BLINDADA - DASHBOARD (INTACTA) ==================
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
     auth = request.headers.get("authorization") or request.headers.get("Authorization") or ""
@@ -242,10 +280,9 @@ async def dashboard_page(request: Request):
     except:
         return no_cache_html(get_path("dashboard.html"))
 
-# ================== API PÚBLICA - TABLET ENVIA DADOS ==================
+# ================== API PÚBLICA - TABLET ENVIA DADOS (INTACTA) ==================
 @app.post("/api/tablet/entrega")
 async def tablet_entrega(payload: dict, request: Request = None):
-    # Tablet só pode ENVIAR, não pode LER condomínios
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
     nova = {
         "box": str(payload.get("box","1")),
@@ -271,7 +308,6 @@ async def tablet_entrega(payload: dict, request: Request = None):
 async def tablet_retirada(payload: dict, request: Request = None):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
     codigo = payload.get("codigo","")
-    # Remove da lista de ocupados e joga pro histórico
     achado = None
     nova_lista = []
     for item in dados.get("lista",[]):
@@ -293,7 +329,7 @@ async def tablet_retirada(payload: dict, request: Request = None):
     registrar_auditoria("RETIRADA_TABLET", detalhes=f"Retirada Box {achado['box']} Código {codigo}", request=request)
     return {"ok": True, "box": achado["box"]}
 
-# ================== APIs BLINDADAS - SÓ COM TOKEN ==================
+# ================== APIs BLINDADAS - SÓ COM TOKEN (INTACTAS) ==================
 @app.get("/api/condominios")
 def listar_conds(token: str = Depends(requer_auth)):
     return load_json(ARQ_CONDS, [{"id":"1","nome":"Todos condomínios"}])
