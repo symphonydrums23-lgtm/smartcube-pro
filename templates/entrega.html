@@ -56,12 +56,14 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 </div>
 <script>
 const condId = localStorage.getItem('condominio_selecionado') || '1';
+let condNomeCache = 'Residencial';
 async function carregarCondominio(){
  try{
    let r = await fetch('/api/condominios/'+condId);
    if(r.ok){
      let c = await r.json();
-     document.getElementById('condominioNome').innerText = c.nome || 'Residencial';
+     condNomeCache = c.nome || 'Residencial';
+     document.getElementById('condominioNome').innerText = condNomeCache;
    }
  }catch(e){}
 }
@@ -69,7 +71,38 @@ carregarCondominio();
 let tam='P'
 function irTamanho(){let b=document.getElementById('bloco').value.trim(),a=document.getElementById('apto').value.trim();if(!b||!a){alert('Digite bloco e apto');return}document.getElementById('destTxt').innerText=`Bloco ${b.toUpperCase()} • Apto ${a}`;document.getElementById('bTxt').innerText=b.toUpperCase();document.getElementById('aTxt').innerText=a;document.getElementById('s1').classList.remove('active');document.getElementById('s2').classList.add('active')}
 function sel(t,el){tam=t;document.querySelectorAll('.size').forEach(s=>s.classList.remove('active'));el.classList.add('active');document.getElementById('btnConf').disabled=false;document.getElementById('tTxt').innerText=t}
-function confirmar(){let p='SC-'+Math.floor(100000+Math.random()*900000);let n=new Date();document.getElementById('protocolo').innerText=p;document.getElementById('dataHora').innerText=n.toLocaleDateString('pt-BR')+' '+n.toLocaleTimeString('pt-BR').slice(0,5);document.getElementById('s2').classList.remove('active');document.getElementById('s3').classList.add('active'); setTimeout(()=>location.href='/',10000); }
+async function confirmar(){
+  let p='SC-'+Math.floor(100000+Math.random()*900000);
+  let n=new Date();
+  let bloco = document.getElementById('bloco').value.trim().toUpperCase();
+  let apto = document.getElementById('apto').value.trim();
+  let dataStr = n.toLocaleDateString('pt-BR')+' '+n.toLocaleTimeString('pt-BR').slice(0,5);
+  document.getElementById('protocolo').innerText=p;
+  document.getElementById('dataHora').innerText=dataStr;
+  document.getElementById('s2').classList.remove('active');
+  document.getElementById('s3').classList.add('active');
+  // ENVIO REAL-TIME PARA O BACKEND / DASHBOARD
+  try{
+    await fetch('/api/entregas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        protocolo: p,
+        condominio_id: condId,
+        condominio_nome: condNomeCache,
+        bloco: bloco,
+        apartamento: apto,
+        tamanho: tam,
+        box: '07',
+        data_hora: n.toISOString(),
+        status: 'ENTREGUE NO BOX'
+      })
+    });
+  }catch(err){
+    console.log('Erro ao enviar entrega pro backend:', err);
+  }
+  setTimeout(()=>location.href='/',10000);
+}
 </script>
 </body>
 </html>
