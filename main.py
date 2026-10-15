@@ -170,7 +170,7 @@ def acesso_negado_html():
     <!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
     <title>Acesso Negado - SmartCube</title>
     <style>body{background:#0f0f0f;color:#fff;font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
-   .box{max-width:400px;padding:40px;border:1px solid #ff4444;border-radius:16px;background:#1a1a1a}
+  .box{max-width:400px;padding:40px;border:1px solid #ff4444;border-radius:16px;background:#1a1a1a}
     h1{color:#ff4444} a{color:#ff8c00;text-decoration:none;margin-top:20px;display:inline-block;border:1px solid #ff8c00;padding:10px 20px;border-radius:8px}
     </style></head><body><div class='box'><h1>🔒 Acesso Negado</h1><p>Esta tela é restrita ao dispositivo físico do armário SmartCube.</p><p>Acesso pela web não permitido por segurança.</p><a href='/site'>Voltar ao Site</a> <a href='/login'>Login Dashboard</a></div></body></html>
     """
@@ -224,18 +224,15 @@ def login_page(): return no_cache_html(get_path("login.html"))
 # ================== ROTAS TABLET - AGORA BLINDADAS WEB ==================
 @app.get("/tablet", response_class=HTMLResponse)
 async def tablet_menu_page(request: Request):
-    # Verifica se é o tablet físico ou admin logado
     tablet_tok = request.headers.get("x-tablet-token") or request.query_params.get("tablet_token") or ""
     admin_tok = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
     auth_h = request.headers.get("authorization") or ""
     if auth_h and "Bearer" in auth_h:
         admin_tok = auth_h.replace("Bearer ","").strip()
-
     if tablet_tok == TABLET_TOKEN:
         return no_cache_html(get_path("tablet.html"))
     if admin_tok and is_token_valid(admin_tok):
         return no_cache_html(get_path("tablet.html"))
-    # Se não tem token válido, é acesso web -> Acesso Negado
     return acesso_negado_html()
 
 @app.get("/retirada", response_class=HTMLResponse)
@@ -455,6 +452,69 @@ def logout_token(authorization: str = Header(None), request: Request = None):
         TOKENS_VALIDOS.pop(token, None)
         save_tokens()
     return {"ok": True}
+
+# ========= FIX REAL-TIME - COMPATIBILIDADE COM entrega.html E retirada.html NOVOS =========
+@app.post("/api/entregas")
+async def api_entregas_compat(payload: dict, request: Request = None):
+    dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
+    nova = {
+        "box": str(payload.get("box","07")),
+        "bloco": payload.get("bloco",""),
+        "apartamento": payload.get("apartamento") or payload.get("apto",""),
+        "codigo": payload.get("codigo") or payload.get("protocolo") or payload.get("codigo_retirada",""),
+        "codigo_retirada": payload.get("codigo_retirada") or payload.get("codigo") or payload.get("protocolo",""),
+        "protocolo": payload.get("protocolo") or payload.get("codigo") or f"SC-{secrets.randbelow(90000)+10000}",
+        "data": payload.get("data") or datetime.now().strftime("%d/%m/%Y"),
+        "hora": payload.get("hora") or datetime.now().strftime("%H:%M"),
+        "nome": payload.get("condominio_nome") or payload.get("nome",""),
+        "created_at": payload.get("data_hora") or datetime.now().isoformat(),
+        "condominio_id": str(payload.get("condominio_id","1"))
+    }
+    if not any(x.get("protocolo")==nova["protocolo"] for x in dados.get("lista",[])):
+        dados["lista"].append(nova)
+        dados["ocupados"] = len(dados["lista"])
+        dados["livres"] = dados.get("total_boxes",16) - dados["ocupados"]
+        dados["ocupacao"] = int(dados["ocupados"]/dados.get("total_boxes",16)*100)
+        save_json(ARQ_DADOS, dados)
+        registrar_auditoria("ENTREGA_API", detalhes=f"Entrega {nova['protocolo']} Box {nova['box']}", request=request)
+    return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"]}
+
+@app.get("/api/entregas")
+def api_listar_entregas_compat(condominio: str = "1", token: str = Depends(requer_auth)):
+    dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
+    if condominio=="1":
+        return dados.get("lista",[])
+    return [e for e in dados.get("lista",[]) if str(e.get("condominio_id","1"))==str(condominio) or "condominio_id" not in e]
+
+@app.post("/api/retiradas")
+async def api_retiradas_compat(payload: dict, request: Request = None):
+    dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
+    codigo = payload.get("protocolo") or payload.get("codigo") or payload.get("codigo_retirada","")
+    achado = None
+    nova_lista = []
+    for item in dados.get("lista",[]):
+        if str(item.get("codigo"))==str(codigo) or str(item.get("codigo_retirada"))==str(codigo) or str(item.get("protocolo"))==str(codigo):
+            achado = item
+        else:
+            nova_lista.append(item)
+    if achado:
+        achado["data_retirada"] = payload.get("data") or datetime.now().strftime("%d/%m/%Y")
+        achado["hora_retirada"] = payload.get("hora") or datetime.now().strftime("%H:%M")
+        achado["tempo"] = "Retirado"
+        dados["lista"] = nova_lista
+        dados["historico"].append(achado)
+        dados["ocupados"] = len(nova_lista)
+        dados["livres"] = dados.get("total_boxes",16) - dados["ocupados"]
+        dados["ocupacao"] = int(dados["ocupados"]/dados.get("total_boxes",16)*100) if dados.get("total_boxes",16) else 0
+        save_json(ARQ_DADOS, dados)
+        registrar_auditoria("RETIRADA_API", detalhes=f"Retirada {codigo}", request=request)
+        return {"ok": True, "box": achado["box"]}
+    return {"ok": True, "msg": "Registrado mesmo sem estar na lista pendente"}
+
+@app.get("/api/retiradas")
+def api_listar_retiradas_compat(condominio: str = "1", token: str = Depends(requer_auth)):
+    dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
+    return dados.get("historico",[])[-100:]
 
 if __name__ == "__main__":
     import uvicorn
