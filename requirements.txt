@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlalchemy
 python-jose[cryptography]
 passlib[bcrypt]
@@ -7,3 +7,4 @@ python-multipart
 jinja2
 PyJWT
 python-dotenv
+websockets
