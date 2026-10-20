@@ -611,6 +611,138 @@ def api_listar_retiradas_compat(condominio: str = "1", token: str = Depends(requ
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
     return dados.get("historico",[])[-100:]
 
+# ========= APP v6.0 - MORADOR E SINDICO =========
+ARQ_APP_USERS = "app_users.json"
+
+def get_app_users():
+    return load_json(ARQ_APP_USERS, [])
+
+def save_app_users(data):
+    save_json(ARQ_APP_USERS, data)
+
+def verificar_app_token(request: Request, authorization: str = Header(None)):
+    token = ""
+    if authorization and "Bearer" in authorization:
+        token = authorization.replace("Bearer ","").strip()
+    if not token:
+        token = request.headers.get("x-token") or request.query_params.get("token") or ""
+    if not token:
+        raise HTTPException(401, "Token do App obrigatório")
+    try:
+        payload = jwt.decode(token, SECRET_JWT, algorithms=["HS256"])
+        return payload
+    except:
+        raise HTTPException(401, "Token App inválido")
+
+@app.get("/api/condominios/public")
+def conds_public():
+    conds = load_json(ARQ_CONDS, [])
+    return [{"id": c["id"], "nome": c["nome"]} for c in conds if str(c["id"])!="1"]
+
+@app.post("/api/app/auth/login")
+def app_login(payload: dict, request: Request):
+    condominio = str(payload.get("condominio","1"))
+    bloco = str(payload.get("bloco","")).strip()
+    apto = str(payload.get("apto","")).strip()
+    senha = str(payload.get("senha","")).strip()
+    
+    # SINDICO: senha master é a mesma do dashboard ou cadastrado em app_users
+    if senha == ADMIN_PASS:
+        users = get_app_users()
+        u = next((x for x in users if x.get("condominio")==condominio and x.get("bloco")==bloco and x.get("apto")==apto), None)
+        role = u["role"] if u else "sindico"
+        nome = u["nome"] if u else f"Síndico Bl {bloco} Ap {apto}"
+        token = jwt.encode({"sub": f"{condominio}-{bloco}-{apto}", "condominio": condominio, "bloco": bloco, "apto": apto, "role": role, "nome": nome, "exp": datetime.now()+timedelta(days=30)}, SECRET_JWT, algorithm="HS256")
+        registrar_auditoria("LOGIN_APP_SINDICO", usuario=nome, detalhes=f"Login síndico Cond {condominio} Bl {bloco} Ap {apto}", condominio_id=condominio, request=request)
+        return {"ok": True, "token": token, "user": {"nome": nome, "role": role, "condominio": condominio, "bloco": bloco, "apto": apto}}
+    
+    # MORADOR: verifica em moradores.json + app_users.json
+    mors = load_json(ARQ_MORS, [])
+    mor = next((m for m in mors if str(m.get("condominio"))==condominio and str(m.get("bloco")).lower()==bloco.lower() and str(m.get("apto") or m.get("apartamento","")).lower()==apto.lower()), None)
+    if not mor:
+        raise HTTPException(401, "Morador não encontrado. Verifique condomínio, bloco e apto")
+    
+    users = get_app_users()
+    u = next((x for x in users if x.get("condominio")==condominio and x.get("bloco")==bloco and x.get("apto")==apto), None)
+    if u and u.get("senha") and u.get("senha")!=senha:
+        raise HTTPException(401, "Senha inválida")
+    
+    role = u["role"] if u and u.get("role") else "morador"
+    token = jwt.encode({"sub": f"{condominio}-{bloco}-{apto}", "condominio": condominio, "bloco": bloco, "apto": apto, "role": role, "nome": mor["nome"], "exp": datetime.now()+timedelta(days=30)}, SECRET_JWT, algorithm="HS256")
+    registrar_auditoria("LOGIN_APP_MORADOR", usuario=mor["nome"], detalhes=f"Login morador Bl {bloco} Ap {apto}", condominio_id=condominio, request=request)
+    return {"ok": True, "token": token, "user": {"nome": mor["nome"], "role": role, "condominio": condominio, "bloco": bloco, "apto": apto}}
+
+@app.get("/api/app/relatorios")
+def app_relatorios(de: str = "", ate: str = "", token_data: dict = Depends(verificar_app_token)):
+    dados = load_json(ARQ_DADOS, {"lista":[],"historico":[]})
+    condominio = token_data.get("condominio","1")
+    bloco = token_data.get("bloco","")
+    apto = token_data.get("apto","")
+    role = token_data.get("role","morador")
+    
+    todas = dados.get("lista",[]) + dados.get("historico",[])
+    
+    if role=="morador":
+        filtradas = [x for x in todas if str(x.get("bloco","")).lower()==bloco.lower() and str(x.get("apartamento") or x.get("apto","")).lower()==apto.lower()]
+    else:
+        filtradas = [x for x in todas if str(x.get("condominio_id","1"))==str(condominio) or True]
+        # sindico vê tudo do condomínio, se quiser filtrar por condominio_id descomente:
+        # filtradas = [x for x in todas if str(x.get("condominio_id","1"))==str(condominio)]
+    
+    # filtro data
+    if de:
+        try:
+            d_de = datetime.strptime(de, "%Y-%m-%d")
+            filtradas = [x for x in filtradas if "created_at" in x and datetime.fromisoformat(x["created_at"].split("T")[0]) >= d_de or "data" in x]
+        except: pass
+    if ate:
+        try:
+            d_ate = datetime.strptime(ate, "%Y-%m-%d")
+            filtradas = [x for x in filtradas if "created_at" in x and datetime.fromisoformat(x["created_at"].split("T")[0]) <= d_ate or "data" in x]
+        except: pass
+    
+    return filtradas[::-1][:200]
+
+@app.post("/api/app/porta/abrir")
+def app_abrir_porta(payload: dict, request: Request, token_data: dict = Depends(verificar_app_token)):
+    if token_data.get("role")!="sindico":
+        raise HTTPException(403, "Apenas síndico pode abrir portas")
+    box = payload.get("box","GERAL")
+    registrar_auditoria("ABERTURA_PORTA_SINDICO", usuario=token_data.get("nome","sindico"), detalhes=f"Síndico abriu Box {box} Bl {token_data.get('bloco')} Ap {token_data.get('apto')} REMOTO", condominio_id=token_data.get("condominio",""), request=request)
+    # Aqui você integra com seu hardware: chamar API da fechadura
+    return {"ok": True, "box": box, "aberta_em": datetime.now().isoformat()}
+
+@app.get("/api/app/moradores")
+def app_listar_moradores(token_data: dict = Depends(verificar_app_token)):
+    if token_data.get("role")!="sindico":
+        raise HTTPException(403, "Apenas síndico")
+    mors = load_json(ARQ_MORS, [])
+    return [m for m in mors if str(m.get("condominio"))==str(token_data.get("condominio"))]
+
+@app.post("/api/app/moradores")
+def app_add_morador(payload: dict, request: Request, token_data: dict = Depends(verificar_app_token)):
+    if token_data.get("role")!="sindico":
+        raise HTTPException(403, "Apenas síndico")
+    mors = load_json(ARQ_MORS, [])
+    novo = {"id": str(uuid.uuid4())[:8], "nome": payload.get("nome"), "bloco": payload.get("bloco",""), "apto": payload.get("apto",""), "condominio": token_data.get("condominio","1"), "criado_por_sindico": token_data.get("nome"), "criado_em": datetime.now().isoformat()}
+    mors.append(novo); save_json(ARQ_MORS, mors)
+    registrar_auditoria("ADD_MORADOR_SINDICO", usuario=token_data.get("nome"), detalhes=f"Síndico adicionou morador {novo['nome']} Bl {novo['bloco']} Ap {novo['apto']}", condominio_id=token_data.get("condominio"), request=request)
+    return novo
+
+@app.delete("/api/app/moradores")
+def app_del_morador(id: str = Query(...), request: Request = None, token_data: dict = Depends(verificar_app_token)):
+    if token_data.get("role")!="sindico":
+        raise HTTPException(403, "Apenas síndico")
+    mors = load_json(ARQ_MORS, [])
+    mor = next((m for m in mors if str(m["id"])==str(id)), None)
+    mors = [m for m in mors if str(m["id"])!=str(id)]; save_json(ARQ_MORS, mors)
+    if mor:
+        registrar_auditoria("EXCLUIU_MORADOR_SINDICO", usuario=token_data.get("nome"), detalhes=f"Síndico excluiu morador {mor['nome']} Bl {mor['bloco']} Ap {mor['apto']}", condominio_id=token_data.get("condominio"), request=request)
+    return {"ok": True}
+
+@app.get("/app", response_class=HTMLResponse)
+def app_page():
+    return no_cache_html(get_path("app.html"))
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5000)
