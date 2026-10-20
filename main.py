@@ -333,7 +333,36 @@ def listar_conds(token: str = Depends(requer_auth)):
 
 @app.get("/api/condominios/{cond_id}")
 def get_cond(cond_id: str, token: str = Depends(requer_auth)):
-    conds = load_json(ARQ_CONDS, []); mors = load_json(ARQ_MORS, [])
+    conds = load_json(ARQ_CONDS, [])
+    mors = load_json(ARQ_MORS, [])
+    dados = load_json(ARQ_DADOS, {"lista":[],"historico":[]})
+
+    # FIX DO 404 QUE APARECE NO SEU LOG - ID 1 É VIRTUAL "Todos condomínios"
+    if str(cond_id) == "1" or cond_id == "Todos condomínios":
+        total_boxes = 16
+        try:
+            soma = 0
+            for c in conds:
+                if str(c.get("id")) != "1":
+                    try:
+                        soma += int(c.get("total_boxes", 0))
+                    except:
+                        pass
+            if soma > 0:
+                total_boxes = soma
+        except:
+            pass
+        return {
+            "id": "1",
+            "nome": "Todos condomínios",
+            "total_boxes": total_boxes,
+            "qtd_moradores": len(mors),
+            "armario_num": "GERAL",
+            "status": "ativo",
+            "cnpj": "",
+            "endereco": "Todos"
+        }
+
     for c in conds:
         if str(c["id"])==str(cond_id):
             c["qtd_moradores"] = len([m for m in mors if str(m.get("condominio"))==str(cond_id)])
@@ -399,7 +428,6 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
     lista_all = raw.get("lista", [])
     hist_all = raw.get("historico", [])
     
-    # Filtro correto para "Todos condominios" = id 1
     if str(condominio) == "1" or condominio == "Todos condomínios":
         lista = lista_all
         historico = hist_all
@@ -407,13 +435,17 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
         lista = [x for x in lista_all if str(x.get("condominio_id","1")) == str(condominio)]
         historico = [x for x in hist_all if str(x.get("condominio_id","1")) == str(condominio)]
 
-    # Calcula total_boxes vindo do condominio.json para nao ficar fixo 16
     total_boxes = raw.get("total_boxes", 16)
     try:
         conds = load_json(ARQ_CONDS, [])
         if str(condominio) == "1":
-            # Soma todos exceto o "Todos condominios"
-            soma = sum([int(c.get("total_boxes",0)) for c in conds if str(c.get("id"))!="1" and str(c.get("total_boxes","")).isdigit() or isinstance(c.get("total_boxes"),int)])
+            soma = 0
+            for c in conds:
+                if str(c.get("id")) != "1":
+                    try:
+                        soma += int(c.get("total_boxes", 0))
+                    except:
+                        pass
             if soma > 0:
                 total_boxes = soma
         else:
@@ -427,7 +459,6 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
     livres = max(0, int(total_boxes) - ocupados)
     ocupacao = int((ocupados / int(total_boxes) * 100)) if int(total_boxes) > 0 else 0
 
-    # Recalcula por_hora e vencidas dinamicamente para graficos nao ficarem zerados
     agora = datetime.now()
     por_hora = [0]*24
     vencidas_lista = []
@@ -440,7 +471,6 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
                 if (agora - dt).total_seconds() > 72*3600:
                     vencidas_lista.append(item)
             else:
-                # tenta pela hora string
                 h_str = item.get("hora","")
                 if ":" in h_str:
                     h = int(h_str.split(":")[0])
