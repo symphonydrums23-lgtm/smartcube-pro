@@ -392,11 +392,76 @@ async def import_csv(file: UploadFile = File(...), condominio: str = Form(...), 
         mors.append({"id": str(uuid.uuid4())[:8],"nome": str(nome).strip(),"bloco": str(row.get("bloco","") or row.get("Bloco","")).strip(),"apto": str(row.get("apto","") or row.get("apartamento","") or row.get("Apto","")).strip(),"condominio": condominio,"consentimento_lgpd": True,"data_consentimento": datetime.now().isoformat(),"origem_cadastro": "importacao_csv"}); count+=1
     save_json(ARQ_MORS, mors); registrar_auditoria("IMPORTACAO_CSV", detalhes=f"Importou {count} moradores", condominio_id=condominio, request=request); return {"importados": count}
 
+# ================== DASHBOARD DADOS - CORRIGIDO - SEM MUDAR ROTA ==================
 @app.get("/api/dashboard/dados")
 def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
-    dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
-    if "ocupacao" not in dados: dados["ocupacao"] = int(dados.get("ocupados",0)/16*100)
-    return dados
+    raw = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
+    lista_all = raw.get("lista", [])
+    hist_all = raw.get("historico", [])
+    
+    # Filtro correto para "Todos condominios" = id 1
+    if str(condominio) == "1" or condominio == "Todos condomínios":
+        lista = lista_all
+        historico = hist_all
+    else:
+        lista = [x for x in lista_all if str(x.get("condominio_id","1")) == str(condominio)]
+        historico = [x for x in hist_all if str(x.get("condominio_id","1")) == str(condominio)]
+
+    # Calcula total_boxes vindo do condominio.json para nao ficar fixo 16
+    total_boxes = raw.get("total_boxes", 16)
+    try:
+        conds = load_json(ARQ_CONDS, [])
+        if str(condominio) == "1":
+            # Soma todos exceto o "Todos condominios"
+            soma = sum([int(c.get("total_boxes",0)) for c in conds if str(c.get("id"))!="1" and str(c.get("total_boxes","")).isdigit() or isinstance(c.get("total_boxes"),int)])
+            if soma > 0:
+                total_boxes = soma
+        else:
+            c = next((c for c in conds if str(c.get("id"))==str(condominio)), None)
+            if c and c.get("total_boxes"):
+                total_boxes = int(c.get("total_boxes"))
+    except:
+        pass
+
+    ocupados = len(lista)
+    livres = max(0, int(total_boxes) - ocupados)
+    ocupacao = int((ocupados / int(total_boxes) * 100)) if int(total_boxes) > 0 else 0
+
+    # Recalcula por_hora e vencidas dinamicamente para graficos nao ficarem zerados
+    agora = datetime.now()
+    por_hora = [0]*24
+    vencidas_lista = []
+    for item in lista:
+        try:
+            created = item.get("created_at") or item.get("data_hora") or ""
+            if "T" in created:
+                dt = datetime.fromisoformat(created.replace("Z","").split(".")[0])
+                por_hora[dt.hour] += 1
+                if (agora - dt).total_seconds() > 72*3600:
+                    vencidas_lista.append(item)
+            else:
+                # tenta pela hora string
+                h_str = item.get("hora","")
+                if ":" in h_str:
+                    h = int(h_str.split(":")[0])
+                    if 0 <= h < 24:
+                        por_hora[h] += 1
+        except:
+            continue
+
+    return {
+        "total_boxes": int(total_boxes),
+        "livres": livres,
+        "ocupados": ocupados,
+        "ocupacao": ocupacao,
+        "vencidas": len(vencidas_lista),
+        "por_hora": por_hora,
+        "lista": lista,
+        "historico": historico,
+        "vencidas_lista": vencidas_lista,
+        "timestamp": agora.isoformat(),
+        "atualizado": agora.strftime("%H:%M:%S")
+    }
 
 @app.post("/api/integracao/gerar")
 def gerar_api_key(payload: dict = {}, request: Request = None, token: str = Depends(requer_auth)):
