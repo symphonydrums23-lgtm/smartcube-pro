@@ -99,7 +99,148 @@ async function confirmar(){
         })
       });
 
-      // MOSTRA QR CODE PRO MORADOR
+      // MOSTRA QR CODE PRO MORADOR<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Entregar - SmartCube</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif}
+body{background:#0a0a0c;min-height:100vh;display:flex;flex-direction:column;color:#fff;overflow-y:auto;position:relative}
+body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-50%);width:800px;height:600px;background:radial-gradient(circle,#FF6A00 0%,transparent 70%);opacity:.15;filter:blur(60px);pointer-events:none}
+.wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:12px;z-index:1;min-height:100vh}
+.card{width:100%;max-width:400px;background:rgba(255,255,255,.98);border-radius:28px;padding:20px 20px 16px;box-shadow:0 0 0 1px rgba(255,255,255,.1),0 20px 60px rgba(0,0,0,.6);color:#000;position:relative;max-height:96vh;overflow-y:auto}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#FF6A00,transparent);opacity:.6}
+.progress{display:flex;gap:6px;justify-content:center;margin-bottom:14px}.dot{width:24px;height:3px;border-radius:10px;background:#eee;transition:.4s}.dot.active{background:#FF6A00;width:36px}
+.icon-circle{width:48px;height:48px;background:linear-gradient(135deg,#FFF1E6,#FFE4CC);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 10px}
+.h1{font-size:20px;font-weight:900;text-align:center;letter-spacing:-.4px;line-height:1.1}.sub{font-size:12px;text-align:center;color:#8a8a8e;margin:6px 0 14px;font-weight:500}
+.field{position:relative;margin-bottom:10px}.field span{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;opacity:.35}
+.field input{width:100%;padding:14px 14px 14px 42px;border:2px solid #f1f1f3;border-radius:14px;font-size:15px;font-weight:800;background:#fafafb;outline:none;text-transform:uppercase}
+.field input:focus{border-color:#FF6A00;background:#fff;box-shadow:0 0 0 3px rgba(255,106,0,.12)}
+.btn-primary{width:100%;padding:15px;background:linear-gradient(135deg,#FF6A00,#FF8533);color:#fff;border:none;border-radius:14px;font-size:13px;font-weight:900;cursor:pointer;margin-top:8px;letter-spacing:.6px;box-shadow:0 8px 20px rgba(255,106,0,.3)}
+.btn-primary:disabled{background:#e9e9ec;color:#a0a0a5;box-shadow:none}
+.btn-sec{width:100%;padding:13px;background:#111;color:#FF6A00;border:none;border-radius:12px;font-size:11px;font-weight:800;cursor:pointer;margin-top:8px;letter-spacing:.4px;transition:.2s}
+.sizes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+.size{height:80px;border:2px solid #f0f0f2;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:#fafafb;transition:.2s}
+.size b{font-size:18px;font-weight:900}.size small{font-size:9px;font-weight:800;letter-spacing:.8px;color:#888;margin-top:2px}
+.size.active{border-color:#FF6A00;background:#fff;box-shadow:0 0 0 3px rgba(255,106,0,.12)}
+.size.active b{color:#FF6A00}
+.step{display:none}.step.active{display:block;animation:fadeUp .3s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.status-box{background:linear-gradient(135deg,#E8F5E9,#E0F2E1);border:1px solid #c8e6c9;border-radius:12px;padding:10px;text-align:center;margin:10px 0}.status-box b{color:#2e7d32;font-size:11px;line-height:1.3}
+.receipt{background:#fcfcfc;border:1.5px dashed #e4e4e7;border-radius:16px;padding:10px 14px;margin:10px 0}
+.receipt-title{font-size:9px;font-weight:900;letter-spacing:1.5px;color:#9a9aa0;text-align:center;margin-bottom:6px}
+.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f3;font-size:11.5px}.row:last-child{border:none}
+.row span:first-child{color:#8a8a9a;font-weight:600}.row span:last-child{font-weight:800;color:#111}
+.hint{margin-top:8px;text-align:center;font-size:10px;color:#a0a0a8;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card step active" id="s1"><div class="progress"><div class="dot active"></div><div class="dot"></div><div class="dot"></div></div><div class="icon-circle">📦</div><div class="h1">Para quem é a<br>encomenda?</div><div class="sub">Informe o destino para liberar um box</div><div class="field"><span>🏢</span><input id="bloco" placeholder="BLOCO  •  Ex: B" maxlength="4"></div><div class="field"><span>🏠</span><input id="apto" placeholder="APTO  •  Ex: 303"></div><button class="btn-primary" onclick="irTamanho()">CONTINUAR →</button><button class="btn-sec" onclick="location.href='/tablet'">VOLTAR AO INÍCIO</button><div class="hint">🔒 LGPD • Dados criptografados</div></div>
+<div class="card step" id="s2"><div class="progress"><div class="dot"></div><div class="dot active"></div><div class="dot"></div></div><div class="icon-circle">📏</div><div class="h1">Qual o tamanho?</div><div class="sub" id="destTxt">-</div><div class="sizes"><div class="size" onclick="sel('P',this)"><b>P</b><small>PEQUENO</small></div><div class="size" onclick="sel('M',this)"><b>M</b><small>MÉDIO</small></div><div class="size" onclick="sel('G',this)"><b>G</b><small>GRANDE</small></div></div><button class="btn-primary" id="btnConf" disabled onclick="confirmar()">ABRIR BOX →</button><button class="btn-sec" onclick="location.href='/tablet'">VOLTAR AO INÍCIO</button></div>
+<div class="card step" id="s3"><div class="progress"><div class="dot"></div><div class="dot"></div><div class="dot active"></div></div><div class="icon-circle">✅</div><div class="h1">Entrega registrada!</div><div class="sub">Box liberado com sucesso</div><div class="status-box"><b>🔓 BOX 07 ABERTO - COLOQUE A ENCOMENDA<br>E FECHE A PORTA</b></div>
+<div class="receipt"><div class="receipt-title">COMPROVANTE DE ENTREGA</div>
+<div class="row"><span>Protocolo</span><span id="protocolo">SC-000000</span></div>
+<div class="row"><span>Data / Hora</span><span id="dataHora">--</span></div>
+<div class="row"><span>Condomínio</span><span id="condominioNome">Residencial</span></div>
+<div class="row"><span>Destino</span><span>Bl <b id="bTxt">B</b> • Ap <b id="aTxt">303</b></span></div>
+<div class="row"><span>Tamanho</span><span id="tTxt">P</span></div>
+<div class="row"><span>Box</span><span style="color:#FF6A00">07</span></div>
+<div class="row"><span>Status</span><span style="color:#2e7d32">● ENTREGUE NO BOX</span></div>
+</div>
+<button class="btn-primary" onclick="location.href='/'">CONCLUIR ✓</button></div>
+</div>
+
+<div id="areaQR" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;padding:24px;border-radius:16px;text-align:center;max-width:320px;margin:0 auto">
+    <b style="font-size:18px;color:#111">✅ Entrega Registrada!</b><br>
+    <div id="qrCond" style="font-size:11px;color:#666;margin-top:6px"></div>
+    <canvas id="qrCanvas" style="margin:14px auto;display:block"></canvas>
+    <div id="txtQR" style="font-family:monospace;font-weight:900;font-size:20px;letter-spacing:2px;color:#111"></div>
+    <div style="font-size:10px;color:#888;margin-top:8px">O morador já pode ver este QR no App</div>
+    <button onclick="location.href='/'" style="margin-top:14px;padding:10px 20px;background:#151821;color:#fff;border:0;border-radius:8px;width:100%">Fechar</button>
+  </div>
+</div>
+
+<script>
+const condId = localStorage.getItem('condominio_selecionado') || '1';
+let condNomeCache = 'Residencial';
+async function carregarCondominio(){
+ try{
+   let r = await fetch('/api/condominios/'+condId);
+   if(r.ok){
+     let c = await r.json();
+     condNomeCache = c.nome || 'Residencial';
+     document.getElementById('condominioNome').innerText = condNomeCache;
+   }
+ }catch(e){}
+}
+carregarCondominio();
+let tam='P'
+function irTamanho(){
+  let b=document.getElementById('bloco').value.trim();
+  let a=document.getElementById('apto').value.trim();
+  if(!b||!a){alert('Digite bloco e apto');return}
+  document.getElementById('destTxt').innerText=`Bloco ${b.toUpperCase()} • Apto ${a}`;
+  document.getElementById('bTxt').innerText=b.toUpperCase();
+  document.getElementById('aTxt').innerText=a;
+  document.getElementById('s1').classList.remove('active');
+  document.getElementById('s2').classList.add('active');
+}
+function sel(t,el){
+  tam=t;
+  document.querySelectorAll('.size').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('btnConf').disabled=false;
+  document.getElementById('tTxt').innerText=t;
+}
+async function confirmar(){
+  let p='SC-'+Math.floor(100000+Math.random()*900000);
+  let n=new Date();
+  let bloco = document.getElementById('bloco').value.trim().toUpperCase();
+  let apto = document.getElementById('apto').value.trim();
+  let dataStr = n.toLocaleDateString('pt-BR')+' '+n.toLocaleTimeString('pt-BR').slice(0,5);
+  document.getElementById('protocolo').innerText=p;
+  document.getElementById('dataHora').innerText=dataStr;
+  document.getElementById('s2').classList.remove('active');
+  document.getElementById('s3').classList.add('active');
+  try{
+      await fetch('/api/entregas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          protocolo: p,
+          condominio_id: condId,
+          condominio_nome: condNomeCache,
+          bloco: bloco,
+          apartamento: apto,
+          tamanho: tam,
+          box: '07',
+          data_hora: n.toISOString(),
+          status: 'ENTREGUE NO BOX'
+        })
+      });
+      let area = document.getElementById('areaQR');
+      if(area){
+        document.getElementById('txtQR').innerText = p;
+        document.getElementById('qrCond').innerText = condNomeCache + ' - Bl ' + bloco + ' Ap ' + apto;
+        if(window.QRCode){
+          QRCode.toCanvas(document.getElementById('qrCanvas'), p, {width:200}, function(err){});
+        }
+        area.style.display='flex';
+      }
+      setTimeout(()=>location.href='/',20000);
+    }catch(err){
+      console.log('Erro ao enviar entrega pro backend:', err);
+    }
+} // <-- ESTAVA FALTANDO ESTA CHAVE, ERA O BUG
+</script>
+</body>
+</html>
       document.getElementById('areaQR').style.display='flex';
       document.getElementById('txtQR').innerText = p;
       document.getElementById('qrCond').innerText = condNomeCache + ' - Bl ' + bloco + ' Ap ' + apto;
