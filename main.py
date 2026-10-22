@@ -113,12 +113,6 @@ async def retirada_page(request: Request):
 @app.get("/entrega", response_class=HTMLResponse)
 async def entrega_page(request: Request):
     return no_cache_html(get_path("entrega.html"))
-ARQ_DADOS = "dashboard_dados.json"
-ARQ_KEYS = "api_keys.json"
-ARQ_BOXES = "boxes.json"
-ARQ_HIST = "historico.json"
-ARQ_AUDIT = "auditoria.json"
-ARQ_LOGIN = "login_attempts.json"
 
 def registrar_auditoria(acao, usuario="sistema", detalhes="", condominio_id="", request: Request = None):
     logs = load_json(ARQ_AUDIT, [])
@@ -218,9 +212,28 @@ async def dashboard_page(request: Request):
   @app.get("/api/condominios")
 def listar_conds():
     return load_json(ARQ_CONDS, [{"id":"1","nome":"Todos condomínios"}])
+@app.get("/api/condominios")
+def listar_conds():
+    return load_json(ARQ_CONDS, [{"id":"1","nome":"Todos condomínios"}])
 
 @app.get("/api/condominios/{cond_id}")
 def get_cond(cond_id: str):
+    conds = load_json(ARQ_CONDS, [])
+    for c in conds:
+        if str(c.get("id")) == str(cond_id):
+            return c
+    return {"id": cond_id, "nome": "Condominio"}
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request):
+    auth = request.headers.get("authorization") or request.headers.get("Authorization") or ""
+    token = ""
+    if auth:
+        token = auth.replace("Bearer ", "").strip()
+    if not token:
+        token = request.cookies.get("sc_token") or ""
+    if not token:
+        token = request.query_params.get("token") or ""
     if not token:
         token = request.headers.get("x-token") or ""
     if not token or not is_token_valid(token):
@@ -229,7 +242,6 @@ def get_cond(cond_id: str):
         return templates.TemplateResponse("dashboard.html", {"request": request})
     except:
         return no_cache_html(get_path("dashboard.html"))
-
 # ================== API PÚBLICA - TABLET ENVIA DADOS (INTACTA) ==================
 @app.post("/api/tablet/entrega")
 async def tablet_entrega(payload: dict, request: Request = None):
