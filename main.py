@@ -211,16 +211,6 @@ async def tablet_menu_page(request: Request):
     tablet_tok = request.headers.get("x-tablet-token") or request.query_params.get("tablet_token") or ""
     admin_tok = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
     auth_h = request.headers.get("authorization") or ""
-  
-async def entrega_page(request: Request):
-    tablet_tok = request.headers.get("x-tablet-token") or request.query_params.get("tablet_token") or ""
-    admin_tok = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
-    auth_h = request.headers.get("authorization") or ""
-    if auth_h and "Bearer" in auth_h:
-        admin_tok = auth_h.replace("Bearer ","").strip()
-    if tablet_tok == TABLET_TOKEN or (admin_tok and is_token_valid(admin_tok)):
-        return no_cache_html(get_path("entrega.html"))
-    return acesso_negado_html()
 
 # ================== ROTA BLINDADA - DASHBOARD (INTACTA) ==================
 @app.get("/dashboard", response_class=HTMLResponse)
