@@ -102,36 +102,20 @@ def is_token_valid(token: str) -> bool:
     if token not in TOKENS_VALIDOS:
         load_tokens()
     dados = TOKENS_VALIDOS.get(token)
-    if not dados: return False
-    if datetime.now() > dados["expires"]:
-        TOKENS_VALIDOS.pop(token, None)
-        save_tokens()
-        return False
-    return True
+   @app.get("/tablet", response_class=HTMLResponse)
+async def tablet_menu_page(request: Request):
+    # V7.2 - TABLET LIVRE - painel do armário sem login
+    return no_cache_html(get_path("tablet.html"))
 
-def requer_auth(request: Request, authorization: str = Header(None)):
-    token = ""
-    if authorization and "Bearer" in authorization:
-        token = authorization.replace("Bearer ", "").strip()
-    if not token:
-        token = request.cookies.get("sc_token") or ""
-    if not token:
-        token = request.query_params.get("token") or ""
-    if not token:
-        token = request.headers.get("x-token") or ""
-    if not token or not is_token_valid(token):
-        raise HTTPException(status_code=401, detail="Não autorizado - Faça login no dashboard")
-    return token
+@app.get("/retirada", response_class=HTMLResponse)
+async def retirada_page(request: Request):
+    # V7.2 - RETIRADA LIVRE - morador sem login
+    return no_cache_html(get_path("retirada.html"))
 
-def check_rate_limit(request: Request):
-    ip = request.client.host if request.client else "127.0.0.1"
-    agora = time.time()
-    LOGIN_TENTATIVAS[ip] = [t for t in LOGIN_TENTATIVAS[ip] if agora - t < 60]
-    if len(LOGIN_TENTATIVAS[ip]) >= 5:
-        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde 1 minuto")
-    return ip
-
-ARQ_CONDS = "condominios.json"
+@app.get("/entrega", response_class=HTMLResponse)
+async def entrega_page(request: Request):
+    # V7.2 - ENTREGA LIVRE - entregador sem login
+    return no_cache_html(get_path("entrega.html"))
 ARQ_MORS = "moradores.json"
 ARQ_DADOS = "dashboard_dados.json"
 ARQ_KEYS = "api_keys.json"
@@ -227,26 +211,7 @@ async def tablet_menu_page(request: Request):
     tablet_tok = request.headers.get("x-tablet-token") or request.query_params.get("tablet_token") or ""
     admin_tok = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
     auth_h = request.headers.get("authorization") or ""
-    if auth_h and "Bearer" in auth_h:
-        admin_tok = auth_h.replace("Bearer ","").strip()
-    if tablet_tok == TABLET_TOKEN:
-        return no_cache_html(get_path("tablet.html"))
-    if admin_tok and is_token_valid(admin_tok):
-        return no_cache_html(get_path("tablet.html"))
-    return acesso_negado_html()
-
-@app.get("/retirada", response_class=HTMLResponse)
-async def retirada_page(request: Request):
-    tablet_tok = request.headers.get("x-tablet-token") or request.query_params.get("tablet_token") or ""
-    admin_tok = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
-    auth_h = request.headers.get("authorization") or ""
-    if auth_h and "Bearer" in auth_h:
-        admin_tok = auth_h.replace("Bearer ","").strip()
-    if tablet_tok == TABLET_TOKEN or (admin_tok and is_token_valid(admin_tok)):
-        return no_cache_html(get_path("retirada.html"))
-    return acesso_negado_html()
-
-@app.get("/entrega", response_class=HTMLResponse)
+  
 async def entrega_page(request: Request):
     tablet_tok = request.headers.get("x-tablet-token") or request.query_params.get("tablet_token") or ""
     admin_tok = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
