@@ -102,21 +102,17 @@ def is_token_valid(token: str) -> bool:
     if token not in TOKENS_VALIDOS:
         load_tokens()
     dados = TOKENS_VALIDOS.get(token)
-   @app.get("/tablet", response_class=HTMLResponse)
+  @app.get("/tablet", response_class=HTMLResponse)
 async def tablet_menu_page(request: Request):
-    # V7.2 - TABLET LIVRE - painel do armário sem login
     return no_cache_html(get_path("tablet.html"))
 
 @app.get("/retirada", response_class=HTMLResponse)
 async def retirada_page(request: Request):
-    # V7.2 - RETIRADA LIVRE - morador sem login
     return no_cache_html(get_path("retirada.html"))
 
 @app.get("/entrega", response_class=HTMLResponse)
 async def entrega_page(request: Request):
-    # V7.2 - ENTREGA LIVRE - entregador sem login
     return no_cache_html(get_path("entrega.html"))
-ARQ_MORS = "moradores.json"
 ARQ_DADOS = "dashboard_dados.json"
 ARQ_KEYS = "api_keys.json"
 ARQ_BOXES = "boxes.json"
@@ -219,10 +215,12 @@ async def dashboard_page(request: Request):
     token = ""
     if auth:
         token = auth.replace("Bearer ", "").strip()
-    if not token:
-        token = request.cookies.get("sc_token") or ""
-    if not token:
-        token = request.query_params.get("token") or ""
+  @app.get("/api/condominios")
+def listar_conds():
+    return load_json(ARQ_CONDS, [{"id":"1","nome":"Todos condomínios"}])
+
+@app.get("/api/condominios/{cond_id}")
+def get_cond(cond_id: str):
     if not token:
         token = request.headers.get("x-token") or ""
     if not token or not is_token_valid(token):
