@@ -206,7 +206,6 @@ class MinhasEncomendasTela extends StatefulWidget {
 }
 
 class _MinhasEncomendasTelaState extends State<MinhasEncomendasTela> {
-  // === APENAS ACRESCENTADO - NÃO REMOVI NADA ===
   Widget _cardResumo(String titulo, String valor, Color cor) {
     return Expanded(child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(12)), child: Column(children: [Text(valor, style: TextStyle(color: cor, fontSize: 22, fontWeight: FontWeight.bold)), Text(titulo, style: const TextStyle(color: Colors.white54, fontSize: 10))])));
   }
@@ -241,7 +240,6 @@ class _MinhasEncomendasTelaState extends State<MinhasEncomendasTela> {
           ),
           const SizedBox(height: 20),
           if (pendentes.isEmpty)
-            // === AQUI ENTRA O GRÁFICO NO LUGAR DO "NENHUMA ENCOMENDA" ===
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(color: const Color(0xFF1A1F35), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.08))),
@@ -549,25 +547,30 @@ class _HistoricoTabState extends State<HistoricoTab> {
         itemBuilder: (context, i) {
           var enc = lista[i];
           if (filtro != 'Todos' && enc.status != filtro) return const SizedBox.shrink();
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-            child: ListTile(
-              onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => DetalheEncomendaScreen(encomenda: enc))).then((_) => setState(() {}));
-              },
-              leading: Container(width: 48, height: 48, decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)), child: Icon(enc.qrValido ? Icons.qr_code : Icons.block, color: const Color(0xFF050E1F))),
-              title: Text('${enc.blocoUnidade} - Pacote', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${enc.pacoteId} ${enc.codigo} • ${enc.locker.replaceAll('Locker L', 'Box ')}', style: const TextStyle(fontSize: 11)),
-                Text('Recebida em ${enc.recebidaEm.day.toString().padLeft(2,'0')}/${enc.recebidaEm.month.toString().padLeft(2,'0')}/${enc.recebidaEm.year}', style: const TextStyle(fontSize: 11)),
-                Row(children: [
-                  Text(enc.status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: enc.status=='Não retirada' ? const Color(0xFFB85C00) : Colors.green)),
-                  const SizedBox(width: 8),
-                  Text(enc.qrValido ? 'QR Válido' : 'QR Expirado', style: TextStyle(fontSize: 10, color: enc.qrValido ? Colors.green : Colors.red)),
+          // FIX: Troca Container branco por Material - mata o erro de DecoratedBox
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              clipBehavior: Clip.antiAlias,
+              child: ListTile(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => DetalheEncomendaScreen(encomenda: enc))).then((_) => setState(() {}));
+                },
+                leading: Container(width: 48, height: 48, decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)), child: Icon(enc.qrValido ? Icons.qr_code : Icons.block, color: const Color(0xFF050E1F))),
+                title: Text('${enc.blocoUnidade} - Pacote', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${enc.pacoteId} ${enc.codigo} • ${enc.locker.replaceAll('Locker L', 'Box ')}', style: const TextStyle(fontSize: 11)),
+                  Text('Recebida em ${enc.recebidaEm.day.toString().padLeft(2,'0')}/${enc.recebidaEm.month.toString().padLeft(2,'0')}/${enc.recebidaEm.year}', style: const TextStyle(fontSize: 11)),
+                  Row(children: [
+                    Text(enc.status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: enc.status=='Não retirada' ? const Color(0xFFB85C00) : Colors.green)),
+                    const SizedBox(width: 8),
+                    Text(enc.qrValido ? 'QR Válido' : 'QR Expirado', style: TextStyle(fontSize: 10, color: enc.qrValido ? Colors.green : Colors.red)),
+                  ]),
                 ]),
-              ]),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 12),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 12),
+              ),
             ),
           );
         },
@@ -662,16 +665,28 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(backgroundColor: const Color(0xFF050E1F), leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)), title: const Text('Configurações', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+        Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
           child: Column(children: [
-            SwitchListTile(value: notifAtiva, onChanged: (v) => setState(() => notifAtiva = v), activeThumbColor: const Color(0xFFFF6B00), secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.notifications, color: Color(0xFF050E1F))), title: const Text('1- Notificações'), subtitle: const Text('Configurações de notificações')),
+            SwitchListTile(
+              value: notifAtiva, 
+              onChanged: (v) => setState(() => notifAtiva = v), 
+              activeThumbColor: const Color(0xFFFF6B00),
+              secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.notifications, color: Color(0xFF050E1F))), 
+              title: const Text('1- Notificações'), 
+              subtitle: const Text('Configurações de notificações')
+            ),
             const Divider(height: 1),
-            ListTile(leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.security, color: Color(0xFF050E1F))), title: const Text('2- Segurança'), subtitle: const Text('Alterar senha'), trailing: const Icon(Icons.arrow_forward_ios, size: 14), onTap: () => _alterarSenha()),
+            ListTile(
+              leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.security, color: Color(0xFF050E1F))), title: const Text('2- Segurança'), subtitle: const Text('Alterar senha'), trailing: const Icon(Icons.arrow_forward_ios, size: 14), onTap: () => _alterarSenha()),
             const Divider(height: 1),
-            ListTile(leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.app_settings_alt, color: Color(0xFF050E1F))), title: const Text('3- Permissões do app'), subtitle: const Text('Notificação'), trailing: const Icon(Icons.arrow_forward_ios, size: 14), onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Abrir Configurações do Sistema > Apps > SmartCube > Permissões')))),
+            ListTile(
+              leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.app_settings_alt, color: Color(0xFF050E1F))), title: const Text('3- Permissões do app'), subtitle: const Text('Notificação'), trailing: const Icon(Icons.arrow_forward_ios, size: 14), onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Abrir Configurações do Sistema > Apps > SmartCube > Permissões')))),
             const Divider(height: 1),
-            ListTile(leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.system_update, color: Color(0xFF050E1F))), title: const Text('4- Checar atualização'), subtitle: const Text('Versão 3.4.3 - Toque para verificar'), trailing: const Icon(Icons.arrow_forward_ios, size: 14), onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Você já está na última versão!')))),
+            ListTile(
+              leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.system_update, color: Color(0xFF050E1F))), title: const Text('4- Checar atualização'), subtitle: const Text('Versão 3.4.3 - Toque para verificar'), trailing: const Icon(Icons.arrow_forward_ios, size: 14), onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Você já está na última versão!')))),
           ]),
         ),
       ]),
