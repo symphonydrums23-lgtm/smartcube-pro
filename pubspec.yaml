@@ -1,0 +1,33 @@
+name: smartcube_pro
+description: "SmartCube Pro - Locker Inteligente"
+publish_to: 'none'
+version: 1.0.0+2
+
+environment:
+  sdk: ^3.3.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  
+  # ESSENCIAIS pro seu backend já existente
+  http: ^1.2.0                 # pra chamar /api/app/auth/login
+  shared_preferences: ^2.2.3   # pra guardar sc_app_token igual localStorage
+  qr_flutter: ^4.1.0           # pra mostrar codigoRetirada como QR
+  intl: ^0.19.0                 # pra formatar recebidaEm / dataRetirada
+
+  # PARA OS ITENS 3 e 4 que você citou
+  
+  mobile_scanner: ^5.1.0        # se o porteiro escanear QR no tablet
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+    - assets/logo_login.png

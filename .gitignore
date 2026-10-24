@@ -1,5 +1,24 @@
+# Python
 .env
 __pycache__/
 *.pyc
 tokens.json
 pgdata/
+main.cpython-314*/
+
+# Flutter - ISSO QUE ESTÁ FALTANDO
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.pub-cache/
+.pub/
+.idea/
+.vscode/
+*.lock
+.metadata
+
+# Sistema
+*.DS_Store
+Thumbs.db
