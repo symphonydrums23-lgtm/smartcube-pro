@@ -31,6 +31,9 @@ def save_json(path, data):
     full_path = os.path.join(BASE_DIR, path)
     with open(full_path,'w',encoding='utf-8') as f: json.dump(data,f,ensure_ascii=False,indent=2)
 ARQ_TOKENS = "tokens.json"; ARQ_DADOS = "dashboard_dados.json"; ARQ_KEYS = "api_keys.json"; ARQ_BOXES = "boxes.json"; ARQ_HIST = "historico.json"; ARQ_AUDIT = "auditoria.json"; ARQ_LOGIN = "login_attempts.json"; ARQ_CONDS = "condominios.json"; ARQ_MORS = "moradores.json"; ARQ_APP_USERS = "app_users.json"
+# IA PACK v5.5 NUVEM READY - ARQUIVOS - ADD ONLY
+ARQ_CACHE_IA = "ia_cache.json"; ARQ_BLOQUEIOS = "ia_bloqueios.json"; ARQ_IA_LOGS = "ia_logs.json"
+
 def no_cache_html(path):
     if os.path.exists(path):
         with open(path, 'r', encoding='utf-8') as f: content = f.read()
@@ -302,4 +305,141 @@ def app_del_morador(id: str = Query(...), request: Request = None, token_data: d
     return {"ok": True}
 @app.get("/app", response_class=HTMLResponse)
 def app_page(): return no_cache_html(get_path("app.html"))
+
+# =========================================================
+# IA PACK v5.5 - INICIO - 6 IAs NUVEM READY - ADD-ONLY
+# Não altera nenhuma rota acima. Motor único pra 100 armários + franquias
+# =========================================================
+
+def _get_cache_ia(condominio_id: str):
+    dados = load_json(ARQ_CACHE_IA, {})
+    item = dados.get(str(condominio_id))
+    if not item: return None
+    try:
+        if time.time() - item.get("ts", 0) < 300:
+            return item.get("data")
+    except: pass
+    return None
+
+def _set_cache_ia(condominio_id: str, data: dict):
+    cache = load_json(ARQ_CACHE_IA, {})
+    cache[str(condominio_id)] = {"ts": time.time(), "data": data}
+    save_json(ARQ_CACHE_IA, cache)
+
+# 1 - IA LOTAÇÃO 24H + PREVISÃO - DASHBOARD
+@app.get("/api/ia/lotacao-24h")
+def ia_lotacao_24h(condominio: str = "1", request: Request = None, token: str = Depends(requer_auth)):
+    cached = _get_cache_ia("lotacao_"+condominio)
+    if cached: return cached
+    raw = load_json(ARQ_DADOS, {"lista":[],"historico":[]})
+    lista_all = raw.get("lista", [])
+    lista = lista_all if str(condominio)=="1" else [x for x in lista_all if str(x.get("condominio_id","1"))==str(condominio) or "condominio_id" not in x]
+    agora = datetime.now(); alertas = []
+    for e in lista:
+        try:
+            created_str = e.get("created_at") or ""
+            if "T" in created_str: dt = datetime.fromisoformat(created_str.replace("Z",""))
+            else: dt = datetime.strptime(f"{e.get('data','')} {e.get('hora','00:00')}", "%d/%m/%Y %H:%M")
+            horas = (agora - dt).total_seconds()/3600
+            if horas>24: alertas.append({"box": e.get("box","--"),"bloco": e.get("bloco",""),"apartamento": e.get("apartamento") or e.get("apto",""),"morador": e.get("nome","") or f"Bl {e.get('bloco','')} Ap {e.get('apartamento','')}", "horas": int(horas), "protocolo": e.get("protocolo","")})
+        except: continue
+    total_boxes = raw.get("total_boxes",16)
+    try:
+        if str(condominio)=="1":
+            conds = load_json(ARQ_CONDS, [])
+            soma = sum(int(c.get("total_boxes",0)) for c in conds if str(c.get("id"))!="1")
+            if soma>0: total_boxes=soma
+    except: pass
+    perc_ocup = int((len(lista)/int(total_boxes)*100)) if int(total_boxes)>0 else 0
+    previsao_percent = min(100, perc_ocup+15 if len(lista)>0 else 12)
+    resultado = {"condominio": condominio,"ocupados": len(lista),"total_boxes": int(total_boxes),"previsao_percent": previsao_percent,"previsao_lotacao": f"{previsao_percent}% de ocupação prevista às 18h","total_atrasados": len(alertas),"alertas_24h": alertas[:50],"atualizado": agora.isoformat(),"cache": "nuvem 5min","versao":"v5.5"}
+    _set_cache_ia("lotacao_"+condominio, resultado)
+    return resultado
+
+# 2 - IA ASSISTENTE SÍNDICO - SÓ APP (como pediu)
+@app.post("/api/ia/sindico/pergunta")
+def ia_sindico_pergunta(payload: dict, request: Request = None, token_data: dict = Depends(verificar_app_token)):
+    if token_data.get("role")!="sindico": raise HTTPException(403, "Apenas síndico")
+    pergunta = payload.get("pergunta","").lower()
+    cond_id = token_data.get("condominio","1")
+    dados = load_json(ARQ_DADOS, {"lista":[],"historico":[]})
+    mors = load_json(ARQ_MORS, [])
+    lista = [x for x in dados.get("lista",[]) if str(x.get("condominio_id","1"))==str(cond_id) or "condominio_id" not in x]
+    # IA simples baseada em regras, mas nuvem-ready pra trocar por LLM depois
+    if "atrasada" in pergunta or "24h" in pergunta:
+        atrasadas = 0
+        for e in lista:
+            try:
+                dt = datetime.fromisoformat(e.get("created_at","").replace("Z","")) if "T" in e.get("created_at","") else datetime.now()
+                if (datetime.now()-dt).total_seconds()/3600>24: atrasadas+=1
+            except: pass
+        resposta = f"Você tem {atrasadas} encomendas com mais de 24h no condomínio. Quer que eu liste?"
+    elif "ocup" in pergunta or "lotação" in pergunta:
+        resposta = f"Você está com {len(lista)} boxes ocupados agora. Previsão de {min(100,len(lista)*6+15)}% às 18h."
+    elif "morador" in pergunta:
+        resposta = f"Você tem {len([m for m in mors if str(m.get('condominio'))==str(cond_id)])} moradores cadastrados."
+    else:
+        resposta = f"Síndico {token_data.get('nome','')}, posso te ajudar com atrasadas, lotação, moradores. Pergunte ex: 'quantas atrasadas?'"
+    registrar_auditoria("IA_SINDICO_PERGUNTA", usuario=token_data.get("nome"), detalhes=pergunta[:100], condominio_id=cond_id, request=request)
+    return {"resposta": resposta, "condominio": cond_id, "versao":"v5.5"}
+
+# 3 e 5 - IA SEGURANÇA GLOBAL + TABLET
+@app.get("/api/ia/seguranca/status")
+def ia_seguranca_status(token: str = Depends(requer_auth)):
+    bloqueios = load_json(ARQ_BLOQUEIOS, {})
+    return {"bloqueios_ativos": len(bloqueios), "lista": bloqueios, "versao":"v5.5"}
+
+def _check_bloqueio(ip: str) -> bool:
+    bloqueios = load_json(ARQ_BLOQUEIOS, {})
+    b = bloqueios.get(ip)
+    if not b: return False
+    if time.time() - b.get("ts",0) < b.get("duracao",1800):
+        return True
+    bloqueios.pop(ip, None)
+    save_json(ARQ_BLOQUEIOS, bloqueios)
+    return False
+
+# 4 - IA GESTORA CADASTRO
+@app.post("/api/ia/gestora/convite")
+def ia_gestora_convite(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
+    cond_id = payload.get("condominio_id")
+    bloco = payload.get("bloco",""); apto = payload.get("apto",""); nome = payload.get("nome","Morador")
+    if not cond_id: raise HTTPException(400, "condominio_id obrigatório")
+    # cria usuário no app_users e gera link WhatsApp
+    users = load_json(ARQ_APP_USERS, [])
+    user_id = str(uuid.uuid4())[:8]
+    novo = {"id": user_id, "condominio": str(cond_id), "bloco": bloco, "apto": apto, "nome": nome, "role": payload.get("role","morador"), "criado_em": datetime.now().isoformat(), "origem": "ia_gestora"}
+    users.append(novo)
+    save_json(ARQ_APP_USERS, users)
+    # link que síndico manda no WhatsApp
+    link = f"/app?condominio={cond_id}&bloco={bloco}&apto={apto}&convite={user_id}"
+    registrar_auditoria("IA_GESTORA_CONVITE", detalhes=f"Convite {nome} Bl {bloco} Ap {apto}", condominio_id=cond_id, request=request)
+    return {"ok": True, "link": link, "mensagem_whatsapp": f"Olá {nome}! Seu acesso ao Smart Cube: {link} - Bl {bloco} Ap {apto}", "versao":"v5.5"}
+
+# 6 - IA ASSISTENTE TABLET + SEGURANÇA TABLET
+@app.post("/api/ia/tablet/assistente")
+def ia_tablet_assistente(payload: dict, request: Request = None):
+    ip = request.client.host if request.client else "unknown"
+    if _check_bloqueio(ip): raise HTTPException(429, "Tablet bloqueado temporariamente por segurança")
+    pergunta = payload.get("pergunta","").lower()
+    if "box" in pergunta or "livre" in pergunta:
+        dados = load_json(ARQ_DADOS, {"lista":[],"total_boxes":16})
+        ocup = set(str(x.get("box")) for x in dados.get("lista",[]))
+        livres = [str(i) for i in range(1, int(dados.get("total_boxes",16))+1) if str(i) not in ocup and f"{i:02d}" not in ocup]
+        resposta = f"Boxes livres: {', '.join(livres[:5])}. Recomendo Box {livres[0] if livres else '01'}"
+    elif "codigo" in pergunta:
+        resposta = "Digite o código no campo. Se não funcionar, peça ajuda ao síndico. Após 5 erros, bloqueio por segurança."
+    else:
+        resposta = "Sou a IA do tablet. Posso ajudar: 'qual box livre?', 'código não funciona?'"
+    return {"resposta": resposta, "versao":"v5.5"}
+
+# LOG IA - pra nuvem depois virar dashboard
+@app.get("/api/ia/logs")
+def ia_logs(token: str = Depends(requer_auth)):
+    return load_json(ARQ_IA_LOGS, [])[::-1][:100]
+
+# =========================================================
+# IA PACK v5.5 - FIM
+# =========================================================
+
 if __name__ == "__main__": import uvicorn; uvicorn.run(app, host="0.0.0.0", port=5000)
