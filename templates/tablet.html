@@ -23,5 +23,32 @@ body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:col
 <button class="btn btn-entregar" onclick="location.href='/entrega'">📦 ENTREGAR<small>ENTREGADOR / PORTARIA</small></button>
 <button class="btn btn-receber" onclick="location.href='/retirada'">🔑 RECEBER<small>MORADOR</small></button>
 <div class="voltar" onclick="location.href='/'">VOLTAR AO INÍCIO</div>
+
+<!-- IA PACK v5.5.1 - TABLET - SILENCIOSA - NAO ALTERA VISUAL -->
+<script>
+// IA roda escondida no tablet - sem botao, sem painel - so backend nuvem
+async function iaTabletBackground(){
+  try{
+    // IA Previsao + Regra 24h + Seguranca rodando silencioso
+    let r = await fetch('/api/ia/lotacao-24h?condominio=1');
+    if(!r.ok) return;
+    let d = await r.json();
+    // Log silencioso para dashboard - nao mostra pro morador/entregador
+    console.log('[IA Tablet Silenciosa] Previsao:', d.previsao_percent+'% | Atrasadas:', d.total_atrasados);
+    // Se tiver >24h, avisa so no console/dashboard, nao no tablet
+    if(d.total_atrasados > 0){
+      // Guarda em localStorage pro dashboard ler depois se precisar
+      localStorage.setItem('sc_ia_tablet_alerta', JSON.stringify({hora: new Date().toISOString(), atrasadas: d.total_atrasados, previsao: d.previsao_percent}));
+    }
+    // IA Gestora + Seguranca tambem rodam no backend main.py - tablet so consome cache
+  }catch(e){
+    console.log('[IA Tablet] Aguardando main.py v5.5');
+  }
+}
+// Roda ao abrir e a cada 5min - nuvem ready - 100 armarios
+iaTabletBackground();
+setInterval(iaTabletBackground, 300000);
+</script>
+<!-- IA PACK FIM -->
 </body>
 </html>
