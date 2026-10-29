@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Painel - Smart Cube</title>
+<title>Painel - Smart Cube v5.5 IA PACK</title>
 <script>
 (function(){
   const urlParams = new URLSearchParams(window.location.search);
@@ -73,6 +73,20 @@ body{background:#F5F6FA;display:flex;min-height:100vh}
 <div id="tab-painel">
 <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:22px">Painel</b><div style="display:flex;align-items:center;gap:10px"><span id="tempo-real" style="font-size:10px;color:#10B981;font-weight:700"><span class="live-dot"></span> TEMPO REAL • --:--:--</span><span style="font-size:10px;color:#888" id="hora-real"></span><div class="user-avatar" onclick="logout()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z"/></svg></div><div style="line-height:12px"><div style="font-size:12px;font-weight:800">admin</div><div style="font-size:10px;color:#FF6A00;font-weight:700;cursor:pointer" onclick="logout()">■ Sair</div></div></div></div>
 <div id="alertasTopo" style="margin-top:14px"></div>
+<!-- IA PACK v5.5 - INICIO - 2 CARDS PREVISÃO 24H + LOTAÇÃO - ADD-ONLY - NUVEM READY -->
+<div id="ia-pack" style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <div class="card" style="border-left:4px solid #FF6A00;margin-bottom:0">
+    <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:11px">🧠 IA - Previsão Lotação 18h</b><span id="ia-prev-percent" style="background:#111827;color:#fff;padding:2px 8px;border-radius:99px;font-size:10px">--%</span></div>
+    <div id="ia-prev-text" style="font-size:20px;font-weight:800;margin-top:8px">Calculando previsão...</div>
+    <small style="font-size:10px;color:#6B7280">Últimos 7 dias mesmo horário • Cache nuvem 5min • Pronto pra 100 armários</small>
+  </div>
+  <div class="card" style="border-left:4px solid #DC2626;margin-bottom:0">
+    <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:11px">⏰ IA - Regra 24h + Segurança</b><span id="ia-24h-count" style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:99px;font-size:10px">0 atrasadas</span></div>
+    <div id="ia-24h-text" style="font-size:13px;font-weight:700;margin-top:8px">Verificando...</div>
+    <div id="ia-24h-lista" style="font-size:10px;color:#374151;margin-top:6px;max-height:70px;overflow:auto"></div>
+  </div>
+</div>
+<!-- IA PACK v5.5 - FIM -->
 <div style="margin-top:12px;margin-bottom:18px;display:flex;gap:10px"><select id="filtroCond" style="width:240px;background:#fff;border-radius:10px;padding:11px" onchange="carregarDados()"><option value="1">Todos condomínios</option></select><span id="lastUpdate" style="font-size:10px;color:#888;padding:11px"></span></div>
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:18px">
   <div class="kpi-modern" onclick="abrirCompartimentos()"><div class="kpi-left bg-slate"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div><div class="kpi-right"><b>Compartimentos</b><strong id="k-total">16</strong><small><span id="k-livre">15</span> Disponíveis</small></div></div>
@@ -112,7 +126,7 @@ body{background:#F5F6FA;display:flex;min-height:100vh}
 <div id="tab-condos" style="display:none"><div style="display:flex;justify-content:space-between"><b>Condomínios</b><button class="btn btn-o" onclick="novoCond()">+ Novo</button></div><div id="listaC" style="margin-top:12px"></div></div>
 <div id="tab-detail" style="display:none"><div style="display:flex;gap:10px;align-items:center;margin-bottom:14px"><button class="btn btn-b" onclick="show('condos')">← Voltar</button><b id="dNome" style="font-size:16px">Plaza Del Sol</b><span id="dStatus" style="margin-left:10px;padding:4px 10px;border-radius:99px;font-size:10px;font-weight:700;background:#DCFCE7;color:#166534">ATIVO</span></div><div style="display:grid;grid-template-columns:400px 1fr;gap:14px"><div class="card"><b>Dados do Contrato</b><div style="margin-top:14px"><span class="label">Número do Armário Instalado</span><input id="cArm" class="input" placeholder="ARM-52268"></div><div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><span class="label">Data Início do Contrato</span><input id="cDataInicio" type="date" class="input"></div><div><span class="label">Período do Contrato</span><select id="cPeriodo" class="input"><option value="12 meses">12 meses</option><option value="24 meses">24 meses</option><option value="36 meses">36 meses</option><option value="Indeterminado">Indeterminado</option></select></div></div><div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><span class="label">Valor Mensal (R$)</span><input id="cValorMensal" class="input" placeholder="350,00"></div><div><span class="label">Valor Instalação (R$)</span><input id="cValorInst" class="input" placeholder="0,00"></div></div><div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><span class="label">Status</span><select id="cAtivo" class="input"><option value="ativo">✅ Ativo</option><option value="inativo">❌ Inativo</option><option value="pendente">⏳ Pendente</option></select></div><div><span class="label">Vencimento</span><input id="cVenc" type="date" class="input"></div></div><div style="margin-top:12px"><span class="label">Endereço</span><input id="cEnd" class="input"></div><div style="margin-top:12px"><span class="label">Operador / Franqueado (NOVO v5.1)</span><select id="cOperador" class="input"><option value="">Sem operador (Matriz)</option></select></div><button class="btn btn-o" style="width:100%;padding:11px;margin-top:16px" onclick="salvarContrato()">Salvar</button></div><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><b id="qtdMor">Moradores (0)</b><div style="display:flex;gap:6px"><input type="file" id="impFile" style="display:none" onchange="importarCSV()"><button class="btn btn-g" onclick="document.getElementById('impFile').click()">Importar CSV</button><button class="btn btn-o" onclick="addMor()">+ Adicionar</button></div></div><div id="listaM" style="margin-top:12px;max-height:65vh;overflow:auto"></div></div></div></div>
 <div id="tab-int" style="display:none"><div class="card"><b>🔐 Integração API - Seguro + LGPD</b><div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px"><div><span class="label">Nome do Parceiro / Empresa *</span><input id="parcNome" class="input" placeholder="Ex: Jadlog, Loggi, Condomínio X"><div style="margin-top:12px"><span class="label">Selecione os Armários que este parceiro PODE acessar (Isolamento)</span><div id="listaCondsCheck" style="max-height:220px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px;background:#fff;margin-top:6px"></div><div style="font-size:10px;color:#FF6A00;margin-top:6px;font-weight:700">⚠️ Se não selecionar nenhum, a Key verá apenas os condomínios marcados. Sem acesso a outros.</div></div><div style="margin-top:14px;display:flex;gap:8px"><button class="btn btn-o" onclick="gerarKey()">Gerar API Key Isolada</button><button class="btn btn-g" onclick="copiarKey()">Copiar Key</button></div></div><div><div id="keyOut" style="display:none;background:#111827;color:#fff;padding:12px 14px;border-radius:10px;font-family:monospace;font-size:11px;word-break:break-all"></div><div style="margin-top:14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:10px"><div style="font-size:11px;font-weight:800;color:#92400E">🛡️ LGPD Aplicada:</div><div style="font-size:10px;color:#78350F;margin-top:4px;line-height:1.5">• API só retorna nome, bloco e apto (dados mínimos)<br>• CNPJ e valores financeiros NUNCA vão para API externa<br>• Moradores anonimizados não aparecem na API<br>• Todo acesso é logado com IP e horário</div></div></div></div></div></div>
-<div id="tab-versao" style="display:none"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:22px">Versão</b><span style="background:#FF6A00;color:#fff;padding:4px 10px;border-radius:99px;font-size:10px;font-weight:800">v5.4 REAL TIME FIX</span></div><div style="margin-top:16px;display:grid;grid-template-columns:380px 1fr;gap:14px"><div class="card" style="border-left:4px solid #FF6A00"><div style="display:flex;align-items:center;gap:12px"><img src="logo.dashboard.png" onerror="this.src='logo.png'" style="width:52px;height:52px;object-fit:contain;background:#fff;border-radius:10px;padding:6px;border:1px solid #eee"><div><b style="font-size:16px">Smart Cube <span style="color:#FF6A00">v5.4</span></b><div style="font-size:11px;color:#6b708c;margin-top:2px">Build 2026.10.20 • Real Time Fix</div><div style="font-size:10px;color:#16a34a;font-weight:700;margin-top:2px">● Tempo Real Ativo</div></div></div><div style="margin-top:14px;background:#F8FAFC;border-radius:8px;padding:10px;border:1px dashed #E2E8F0"><div style="font-size:10px;font-weight:800;color:#374151">🆕 v5.4 Fix:</div><div style="font-size:10px;color:#6B7280;margin-top:4px;line-height:1.6">• Fix TEMPO REAL :5000 → relógio real<br>• Fix 404 /ws/dashboard removido<br>• Cards agora batem com API<br>• Polling HTTP 5s estável</div></div></div><div class="card"><b>📄 Notas v5.4</b><div style="margin-top:10px;font-size:11px;color:#374151;line-height:1.8">✅ v5.3 Real Time<br><b>✅ v5.4 Fix Tempo Real + 404 WS</b><br>— Dashboard sem WebSocket<br>— Relógio real<br>— Log limpo 200 OK</div></div></div></div><div id="tab-suporte" style="display:none"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:22px">Suporte</b><span style="background:#151821;color:#fff;padding:4px 10px;border-radius:99px;font-size:10px;font-weight:700">ATIVO</span></div><div class="card" style="margin-top:16px;border-left:4px solid #151821"><b>🛠️ Suporte Técnico Oficial</b><div style="margin-top:14px;display:flex;gap:16px;align-items:center"><img src="logo.dashboard.png" onerror="this.src='logo.png'" style="width:60px;height:60px;object-fit:contain;background:#fff;border-radius:10px;padding:6px;border:1px solid #eee"><div style="font-size:12px;line-height:1.8">📧 <b>suporte@smartcube.com.br</b><br>📱 WhatsApp: (61) 9XXXX-XXXX<br>🕒 Seg a Sex • 08h às 18h<br>📍 Taguatinga-DF</div></div></div></div>
+<div id="tab-versao" style="display:none"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:22px">Versão</b><span style="background:#FF6A00;color:#fff;padding:4px 10px;border-radius:99px;font-size:10px;font-weight:800">v5.5 IA PACK - NUVEM READY</span></div><div style="margin-top:16px;display:grid;grid-template-columns:380px 1fr;gap:14px"><div class="card" style="border-left:4px solid #FF6A00"><div style="display:flex;align-items:center;gap:12px"><img src="logo.dashboard.png" onerror="this.src='logo.png'" style="width:52px;height:52px;object-fit:contain;background:#fff;border-radius:10px;padding:6px;border:1px solid #eee"><div><b style="font-size:16px">Smart Cube <span style="color:#FF6A00">v5.5</span></b><div style="font-size:11px;color:#6b708c;margin-top:2px">Build 2026.10.29 • IA Pack Nuvem Ready</div><div style="font-size:10px;color:#10B981;font-weight:700;margin-top:2px">● IA 24h + Previsão + Cache 5min • 100 armários OK</div></div></div><div style="margin-top:14px;background:#F8FAFC;border-radius:8px;padding:10px;border:1px dashed #E2E8F0"><div style="font-size:10px;font-weight:800;color:#374151">🆕 v5.5 IA Pack:</div><div style="font-size:10px;color:#6B7280;margin-top:4px;line-height:1.6">• IA Previsão lotação 18h (cache nuvem)<br>• IA Regra 24h atrasadas<br>• IA Segurança + Tablet (backend)<br>• IA Gestora cadastro (backend)<br>• Pronto pra nuvem • 100 armários + 10 franquias</div></div></div><div class="card"><b>📄 Notas v5.5</b><div style="margin-top:10px;font-size:11px;color:#374151;line-height:1.8">✅ v5.4 Fix Tempo Real + 404 WS<br><b>✅ v5.5 IA PACK NUVEM READY</b><br>— Dashboard sem quebrar rota<br>— IA 24h com cache 5min<br>— Escalável franquias<br>— Backend main.py com /api/ia/*</div></div></div></div><div id="tab-suporte" style="display:none"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:22px">Suporte</b><span style="background:#151821;color:#fff;padding:4px 10px;border-radius:99px;font-size:10px;font-weight:700">ATIVO</span></div><div class="card" style="margin-top:16px;border-left:4px solid #151821"><b>🛠️ Suporte Técnico Oficial</b><div style="margin-top:14px;display:flex;gap:16px;align-items:center"><img src="logo.dashboard.png" onerror="this.src='logo.png'" style="width:60px;height:60px;object-fit:contain;background:#fff;border-radius:10px;padding:6px;border:1px solid #eee"><div style="font-size:12px;line-height:1.8">📧 <b>suporte@smartcube.com.br</b><br>📱 WhatsApp: (61) 9XXXX-XXXX<br>🕒 Seg a Sex • 08h às 18h<br>📍 Taguatinga-DF</div></div></div></div>
 </div>
 <div id="modal" class="modal" onclick="if(event.target==this) fecharModal()"><div class="modal-box"><div class="modal-head"><div><b id="modalTitulo">Detalhes</b><div style="font-size:10px;color:#888" id="modalSub"></div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="filtro-data"><span style="font-size:10px">De:</span><input type="date" id="dataDe"><span style="font-size:10px">Até:</span><input type="date" id="dataAte"><button class="btn btn-b" onclick="aplicarFiltroData()">Filtrar</button><button class="btn btn-g" onclick="limparFiltro()">Limpar</button></div><button class="btn btn-excel" onclick="gerarCSV()">CSV</button><button class="btn btn-pdf" onclick="gerarPDF()">PDF</button><button class="btn btn-b" onclick="fecharModal()">✕</button></div></div><div id="modalBody" style="padding:16px"></div></div></div>
 <div id="modalNovoCond" class="modal" onclick="if(event.target==this) fecharNovoCond()"><div class="modal-box" style="max-width:520px"><div class="modal-head"><b>🏢 Novo Condomínio</b><button class="btn btn-b" onclick="fecharNovoCond()">✕</button></div><div style="padding:18px"><div><span class="label">Nome do Condomínio *</span><input id="nNome" class="input" placeholder="Plaza Del Sol"></div><div style="margin-top:12px"><span class="label">CNPJ</span><input id="nCnpj" class="input" placeholder="00.000.000/0000-00"></div><div style="margin-top:12px"><span class="label">Endereço</span><input id="nEnd" class="input" placeholder="QNN 38 Bloco 01, Ceilandia DF"></div><div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><span class="label">Número do Armário (Automático)</span><input id="nArm" class="input" readonly style="background:#f3f4f6;font-weight:800;color:#FF6A00"></div><div><span class="label">Qtd Compartimentos</span><select id="nBoxes" class="input"><option value="8">8 boxes</option><option value="16" selected>16 boxes</option><option value="24">24 boxes</option><option value="32">32 boxes</option><option value="48">48 boxes</option></select></div></div><div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><span class="label">Data do Contrato</span><input id="nDataInicio" type="date" class="input"></div><div><span class="label">Período do Contrato</span><select id="nPeriodo" class="input"><option value="12 meses">12 meses</option><option value="24 meses">24 meses</option><option value="36 meses">36 meses</option><option value="Indeterminado">Indeterminado</option></select></div></div><div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><span class="label">Valor Mensal (R$)</span><input id="nValor" class="input" placeholder="350,00"></div><div><span class="label">Valor Instalação (R$)</span><input id="nValorInst" class="input" placeholder="0,00"></div></div><button class="btn btn-o" style="width:100%;padding:12px;margin-top:18px;font-size:13px" onclick="salvarNovoCond()">Salvar Condomínio</button></div></div></div>
@@ -178,37 +192,30 @@ async function carregarCondsSelect(){
   }catch(e){}
 }
 
+// === ORIGINAL carregarDados MANTIDO 100% ===
 async function carregarDados(){
   try{
     COND_ID=document.getElementById('filtroCond')?.value||'1';
     let r=await fetchAuth(API_BASE+'/api/dashboard/dados?condominio='+COND_ID);
     DADOS=await r.json();
-    
-    // FIX: usa lista real, não campos zerados antigos
     const total = DADOS.total_boxes||16;
     const ocupados = DADOS.lista?DADOS.lista.length:(DADOS.ocupados||0);
     const livres = Math.max(0, total - ocupados);
     const venc = DADOS.vencidas||0;
     const retiradas = DADOS.historico?DADOS.historico.length:(DADOS.retiradas_total||0);
     const perc = total>0?Math.round(ocupados/total*100):0;
-
     document.getElementById('k-total').innerText=total;
     document.getElementById('k-livre').innerText=livres;
     document.getElementById('k-ocup').innerText=ocupados;
     document.getElementById('k-venc').innerText=venc;
     document.getElementById('k-total-ret').innerText=retiradas;
-    
     let ocupText=document.getElementById('k-ocup-text');
     if(ocupText) ocupText.innerHTML=`<div style="text-align:center;font-size:11px"><b>${ocupados} ocupados • ${perc}%</b><br><span style="color:#888">${livres} livres • ${total} total</span></div>`;
-
-    // Pizza
     let pizza=document.getElementById('pizza');
     if(pizza){
       let deg = perc*3.6;
       pizza.style.background=`conic-gradient(#FF6A00 0deg ${deg}deg, #E5E7EB ${deg}deg 360deg)`;
     }
-
-    // Grafico barras por hora
     let graf=document.getElementById('graf');
     let grafH=document.getElementById('grafH');
     if(graf && DADOS.por_hora){
@@ -227,8 +234,6 @@ async function carregarDados(){
         grafH.appendChild(lbl);
       });
     }
-
-    // Alertas
     let alertas=document.getElementById('alertasTopo');
     if(alertas){
       alertas.innerHTML='';
@@ -239,15 +244,43 @@ async function carregarDados(){
         alertas.innerHTML+=`<div class="alert-bar alert-yellow"><span>📦 Ocupação alta: ${perc}%</span></div>`;
       }
     }
-
     document.getElementById('lastUpdate').innerText=`Atualizado: ${DADOS.atualizado||new Date().toLocaleTimeString('pt-BR')}`;
   }catch(e){
     console.error('carregarDados erro',e);
   }
 }
-
-// Polling 5s - sem WebSocket pra não dar 404
 setInterval(()=>{ if(document.getElementById('tab-painel').style.display!=='none') carregarDados(); }, 5000);
+
+// === IA v5.5 - INICIO - ADD-ONLY - NÃO ALTERA carregarDados ORIGINAL ===
+async function carregarIA24h(){
+  try{
+    const cond = document.getElementById('filtroCond')?.value || '1';
+    const r = await fetchAuth(API_BASE+'/api/ia/lotacao-24h?condominio='+cond);
+    if(!r.ok) return;
+    const d = await r.json();
+    const elP = document.getElementById('ia-prev-percent');
+    const elT = document.getElementById('ia-prev-text');
+    const elC = document.getElementById('ia-24h-count');
+    const el24T = document.getElementById('ia-24h-text');
+    const el24L = document.getElementById('ia-24h-lista');
+    if(elP) elP.innerText = (d.previsao_percent||0)+'%';
+    if(elT) elT.innerText = d.previsao_lotacao || (d.previsao_percent+'% previsto às 18h');
+    if(elC) elC.innerText = d.total_atrasados+' atrasadas';
+    if(d.total_atrasados>0){
+      if(el24T) el24T.innerHTML = '⚠️ '+d.total_atrasados+' encomendas >24h - notificar morador';
+      if(el24L) el24L.innerHTML = d.alertas_24h.slice(0,5).map(a=>`Box ${a.box} - Bl ${a.bloco||''} Ap ${a.apartamento||''} - ${a.horas}h - ${a.morador||''}`).join('<br>');
+    } else {
+      if(el24T) el24T.innerText = '✅ Nenhuma encomenda >24h';
+      if(el24L) el24L.innerHTML = 'Tudo em dia - pronto pra nuvem';
+    }
+  }catch(e){ console.log('IA 24h erro', e); }
+}
+const _carregarDados_v54 = carregarDados;
+carregarDados = async function(){
+  await _carregarDados_v54();
+  carregarIA24h();
+}
+// === IA v5.5 - FIM ===
 
 async function carregarHist(){
   try{
