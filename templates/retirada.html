@@ -30,11 +30,14 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f3;font-size:11.5px}.row:last-child{border:none}
 .row span:first-child{color:#8a8a9a;font-weight:600}.row span:last-child{font-weight:800;color:#111}
 .hint{margin-top:8px;text-align:center;font-size:10px;color:#a0a0a8;font-weight:600}
+.msg-erro{background:#FEF2F2;border:1px solid #fecaca;color:#dc2626;border-radius:10px;padding:10px;text-align:center;font-size:11px;font-weight:700;margin-top:8px;display:none}
 </style>
 </head>
 <body>
 <div class="wrap">
-<div class="card step active" id="s1"><div class="progress"><div class="dot active"></div><div class="dot"></div></div><div class="icon-circle">🔑</div><div class="h1">Retirar<br>encomenda</div><div class="sub">Digite o código que recebeu no App</div><div class="field"><span>🔒</span><input id="codigo" placeholder="CÓDIGO  •  Ex: SC-123456" maxlength="12"></div><button class="btn-primary" onclick="validarCodigo()">VALIDAR CÓDIGO →</button><button class="btn-sec" onclick="location.href='/tablet'">VOLTAR AO INÍCIO</button><div class="hint">🔒 QR Code válido por 24h</div></div>
+<div class="card step active" id="s1"><div class="progress"><div class="dot active"></div><div class="dot"></div></div><div class="icon-circle">🔑</div><div class="h1">Retirar<br>encomenda</div><div class="sub">Digite o código que recebeu no App</div><div class="field"><span>🔒</span><input id="codigo" placeholder="CÓDIGO  •  Ex: SC-123456" maxlength="12"></div>
+<div id="erroMsg" class="msg-erro"></div>
+<button class="btn-primary" id="btnValidar" onclick="validarCodigo()">VALIDAR CÓDIGO →</button><button class="btn-sec" onclick="location.href='/tablet'">VOLTAR AO INÍCIO</button><div class="hint">🔒 QR Code válido por 24h</div></div>
 <div class="card step" id="s2"><div class="progress"><div class="dot"></div><div class="dot active"></div></div><div class="icon-circle">✅</div><div class="h1">Retirada liberada!</div><div class="sub">Box liberado com sucesso</div><div class="status-box"><b>🔓 BOX <span id="boxNum">07</span> ABERTO - RETIRE A ENCOMENDA<br>E FECHE A PORTA</b></div>
 <div class="receipt"><div class="receipt-title">COMPROVANTE DE RETIRADA</div>
 <div class="row"><span>Protocolo</span><span id="protocolo">SC-000000</span></div>
@@ -44,7 +47,7 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="row"><span>Código</span><span id="codigoTxt">-</span></div>
 <div class="row"><span>Status</span><span style="color:#2e7d32">● RETIRADO</span></div>
 </div>
-<button class="btn-primary" onclick="location.href='/'">CONCLUIR ✓</button></div>
+<button class="btn-primary" onclick="location.href='/tablet'">CONCLUIR ✓</button></div>
 </div>
 <script>
 const condId = localStorage.getItem('condominio_selecionado') || '1';
@@ -61,44 +64,66 @@ async function carregarCondominio(){
 }
 carregarCondominio();
 
-function validarCodigo(){
-  let cod = document.getElementById('codigo').value.trim().toUpperCase();
-  if(!cod || cod.length < 3){ alert('Digite o código'); return; }
-  // Simula box 07 - na integração real viria da API
-  document.getElementById('codigoTxt').innerText = cod;
-  document.getElementById('protocolo').innerText = cod;
-  confirmarRetirada(cod);
-}
+async function validarCodigo(){
+  let el = document.getElementById('codigo');
+  let cod = el.value.trim().toUpperCase();
+  let btn = document.getElementById('btnValidar');
+  let erro = document.getElementById('erroMsg');
+  erro.style.display='none';
+  if(!cod || cod.length < 3){ erro.innerText='Digite o código'; erro.style.display='block'; return; }
 
-async function confirmarRetirada(codigo){
-  let n = new Date();
-  let dataStr = n.toLocaleDateString('pt-BR')+' '+n.toLocaleTimeString('pt-BR').slice(0,5);
-  document.getElementById('dataHora').innerText = dataStr;
-  document.getElementById('s1').classList.remove('active');
-  document.getElementById('s2').classList.add('active');
+  btn.disabled = true;
+  btn.innerText = 'VALIDANDO...';
 
-  // ENVIO REAL-TIME PARA O BACKEND / DASHBOARD
   try{
-    await fetch('/api/retiradas', {
+    // VALIDAÇÃO REAL - NOVO MAIN.PY RETORNA 404 SE NÃO EXISTIR
+    let resp = await fetch('/api/retiradas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        protocolo: codigo,
-        codigo_retirada: codigo,
+        protocolo: cod,
+        codigo_retirada: cod,
         condominio_id: condId,
         condominio_nome: condNomeCache,
-        box: document.getElementById('boxNum').innerText||'07',
-        data_hora: n.toISOString(),
-        data: n.toLocaleDateString('pt-BR'),
-        hora: n.toLocaleTimeString('pt-BR').slice(0,5),
+        data_hora: new Date().toISOString(),
+        data: new Date().toLocaleDateString('pt-BR'),
+        hora: new Date().toLocaleTimeString('pt-BR').slice(0,5),
         status: 'RETIRADO'
       })
     });
-  }catch(err){
-    console.log('Erro ao enviar retirada:', err);
-  }
 
-  setTimeout(()=>location.href='/',10000);
+    if(!resp.ok){
+      let msg = 'Código inválido ou já retirado';
+      try{ let j = await resp.json(); if(j.detail) msg = j.detail; }catch{}
+      erro.innerText = '❌ ' + msg;
+      erro.style.display='block';
+      btn.disabled = false;
+      btn.innerText = 'VALIDAR CÓDIGO →';
+      return;
+    }
+
+    let d = await resp.json();
+    let boxReal = d.box || '07';
+
+    document.getElementById('codigoTxt').innerText = cod;
+    document.getElementById('protocolo').innerText = cod;
+    document.getElementById('boxNum').innerText = boxReal;
+    document.getElementById('boxTxt').innerText = boxReal;
+
+    let n = new Date();
+    document.getElementById('dataHora').innerText = n.toLocaleDateString('pt-BR')+' '+n.toLocaleTimeString('pt-BR').slice(0,5);
+
+    document.getElementById('s1').classList.remove('active');
+    document.getElementById('s2').classList.add('active');
+
+    setTimeout(()=>location.href='/tablet',10000);
+
+  }catch(err){
+    erro.innerText = 'Erro de conexão com servidor';
+    erro.style.display='block';
+    btn.disabled = false;
+    btn.innerText = 'VALIDAR CÓDIGO →';
+  }
 }
 </script>
 </body>
