@@ -28,20 +28,15 @@ body{background:#F5F6FA;min-height:100vh}
     <div style="margin-top:12px"><span class="label">Bloco</span><input id="appBloco" class="input" placeholder="Ex: 1"></div>
     <div style="margin-top:12px"><span class="label">Apto / Unidade</span><input id="appApto" class="input" placeholder="Ex: 101"></div>
     <div style="margin-top:12px"><span class="label">Senha / Código</span><input id="appSenha" type="password" class="input" placeholder="Sua senha"></div>
-    <button class="btn btn-o" style="margin-top:18px" onclick="appLogin()">Entrar</button>
+    <button class="btn btn-o" style="margin-top:18px" id="btnEntrar" onclick="appLogin()">Entrar</button>
     <div id="appMsg" style="font-size:11px;color:#c00;margin-top:10px"></div>
   </div>
 </div>
-
 <div id="app" style="display:none;padding-bottom:70px">
   <div class="header"><b id="appNome">Olá, Morador</b><span id="appRole" style="background:#FF6A00;padding:4px 10px;border-radius:99px;font-size:10px"></span></div>
-  
   <div id="t-rel" class="tab active"><div class="card"><b>📦 Meus Relatórios - Todo Período</b><div style="display:flex;gap:8px;margin-top:12px"><input type="date" id="relDe" class="input"><input type="date" id="relAte" class="input"></div><button class="btn btn-o" style="margin-top:12px" onclick="carregarRel()">Filtrar</button><div id="relLista" style="margin-top:14px"></div></div></div>
-  
   <div id="t-porta" class="tab"><div class="card"><b>🚪 Abertura Remota (Síndico)</b><div style="font-size:11px;color:#666;margin-top:6px">Ação registrada em auditoria LGPD</div><div style="margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px" id="gridPorta"></div><button class="btn btn-b" style="margin-top:14px" onclick="abrirPortaGeral()">🔓 Abrir Porta Geral</button></div></div>
-  
   <div id="t-mors" class="tab"><div class="card"><b>👥 Moradores (Síndico)</b><div style="margin-top:12px;display:flex;gap:6px"><input id="novoNome" class="input" placeholder="Nome"><input id="novoBloco" class="input" placeholder="Bloco"><input id="novoApto" class="input" placeholder="Apto"></div><button class="btn btn-o" style="margin-top:10px" onclick="addMorApp()">+ Adicionar Morador</button><div id="listaMorApp" style="margin-top:14px"></div></div></div>
-
   <div class="menu-bottom">
     <button id="b-rel" class="active" onclick="showApp('rel')">📊 Relatórios</button>
     <button id="b-porta" onclick="showApp('porta')" style="display:none">🚪 Portas</button>
@@ -49,41 +44,92 @@ body{background:#F5F6FA;min-height:100vh}
     <button onclick="appLogout()">Sair</button>
   </div>
 </div>
-
 <script>
 let APP_TOKEN='', APP_USER=null;
-async function loadCondsApp(){let r=await fetch('/api/condominios/public');if(r.ok){let cs=await r.json();let s=document.getElementById('appCond');s.innerHTML=cs.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');}}
+async function loadCondsApp(){
+  let r=await fetch('/api/condominios/public');
+  if(r.ok){
+    let cs=await r.json();
+    let s=document.getElementById('appCond');
+    s.innerHTML=cs.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+    // convite IA gestora: /app?condominio=X&bloco=Y&apto=Z
+    const qs=new URLSearchParams(location.search);
+    if(qs.get('condominio')) s.value=qs.get('condominio');
+    if(qs.get('bloco')) document.getElementById('appBloco').value=qs.get('bloco');
+    if(qs.get('apto')) document.getElementById('appApto').value=qs.get('apto');
+  }
+}
 loadCondsApp();
-function showApp(t){document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));document.getElementById('t-'+t).classList.add('active');document.querySelectorAll('.menu-bottom button').forEach(b=>b.classList.remove('active'));document.getElementById('b-'+t)?.classList.add('active');}
 
-async function appLogin(){
-  let payload={condominio:document.getElementById('appCond').value,bloco:document.getElementById('appBloco').value,apto:document.getElementById('appApto').value,senha:document.getElementById('appSenha').value};
-  let r=await fetch('/api/app/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  let d=await r.json();
-  if(!r.ok){document.getElementById('appMsg').innerText=d.detail||'Login falhou';return;}
-  APP_TOKEN=d.token; APP_USER=d.user;
-  localStorage.setItem('sc_app_token', APP_TOKEN);
+function showApp(t){
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById('t-'+t).classList.add('active');
+  document.querySelectorAll('.menu-bottom button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('b-'+t)?.classList.add('active');
+}
+
+function setAppLogged(user, token){
+  APP_TOKEN=token; APP_USER=user;
   document.getElementById('login').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('appNome').innerText='Olá, '+APP_USER.nome;
   document.getElementById('appRole').innerText=APP_USER.role.toUpperCase();
-  if(APP_USER.role=='sindico'){document.getElementById('b-porta').style.display='block';document.getElementById('b-mors').style.display='block'; carregarGridPorta(); carregarMorApp();}
+  if(APP_USER.role=='sindico'){
+    document.getElementById('b-porta').style.display='block';
+    document.getElementById('b-mors').style.display='block';
+    carregarGridPorta();
+    carregarMorApp();
+  }
   carregarRel();
 }
 
+async function appLogin(){
+  let btn=document.getElementById('btnEntrar');
+  btn.disabled=true; btn.innerText='ENTRANDO...';
+  let payload={condominio:document.getElementById('appCond').value,bloco:document.getElementById('appBloco').value,apto:document.getElementById('appApto').value,senha:document.getElementById('appSenha').value};
+  let r=await fetch('/api/app/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  let d=await r.json();
+  if(!r.ok){document.getElementById('appMsg').innerText=d.detail||'Login falhou'; btn.disabled=false; btn.innerText='Entrar'; return;}
+  localStorage.setItem('sc_app_token', d.token);
+  localStorage.setItem('sc_app_user', JSON.stringify(d.user));
+  setAppLogged(d.user, d.token);
+  btn.disabled=false; btn.innerText='Entrar';
+}
+
 async function carregarRel(){
+  if(!APP_TOKEN) return;
   let de=document.getElementById('relDe').value, ate=document.getElementById('relAte').value;
   let r=await fetch(`/api/app/relatorios?de=${de||''}&ate=${ate||''}`,{headers:{Authorization:'Bearer '+APP_TOKEN}});
+  if(r.status==401){ appLogout(); return; }
   let lista=await r.json();
-  document.getElementById('relLista').innerHTML=lista.length?lista.map(i=>`<div style="padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between"><div><b>${i.protocolo}</b><div style="font-size:10px;color:#666">${i.data} ${i.hora} - Box ${i.box}</div></div><span class="badge ${i.data_retirada?'badge-ok':'badge-pend'}">${i.data_retirada?'RETIRADO':'PENDENTE'}</span></div>`).join(''):`<div style="font-size:11px;color:#888">Nenhum registro no período</div>`;
+  document.getElementById('relLista').innerHTML=lista.length?lista.map(i=>`<div style="padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between"><div><b>${i.protocolo||i.codigo||'--'}</b><div style="font-size:10px;color:#666">${i.data||''} ${i.hora||''} - Box ${i.box||'--'} - Bl ${i.bloco||''} Ap ${i.apartamento||i.apto||''}</div></div><span class="badge ${i.data_retirada?'badge-ok':'badge-pend'}">${i.data_retirada?'RETIRADO':'PENDENTE'}</span></div>`).join(''):`<div style="font-size:11px;color:#888">Nenhum registro no período</div>`;
 }
-function carregarGridPorta(){document.getElementById('gridPorta').innerHTML=Array.from({length:16},(_,i)=>`<button class="btn btn-g" onclick="abrirPorta('${String(i+1).padStart(2,'0')}')">Box ${String(i+1).padStart(2,'0')}</button>`).join('');}
+
+async function carregarGridPorta(){
+  let total=16;
+  try{
+    let r=await fetch('/api/condominios/'+APP_USER.condominio);
+    if(r.ok){ let c=await r.json(); total=parseInt(c.total_boxes||16); }
+  }catch{}
+  document.getElementById('gridPorta').innerHTML=Array.from({length:total},(_,i)=>`<button class="btn btn-g" onclick="abrirPorta('${String(i+1).padStart(2,'0')}')">Box ${String(i+1).padStart(2,'0')}</button>`).join('');
+}
+
 async function abrirPorta(box){if(!confirm('Abrir Box '+box+'? Ação será registrada.'))return;let r=await fetch('/api/app/porta/abrir',{method:'POST',headers:{Authorization:'Bearer '+APP_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({box})});let d=await r.json();alert(d.ok?'Porta aberta! Registrado em auditoria.':d.detail);}
 async function abrirPortaGeral(){abrirPorta('GERAL');}
-async function carregarMorApp(){let r=await fetch('/api/app/moradores',{headers:{Authorization:'Bearer '+APP_TOKEN}});let mors=await r.json();document.getElementById('listaMorApp').innerHTML=mors.map(m=>`<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee"><span>${m.nome} - Bl ${m.bloco} Ap ${m.apto}</span><button onclick="delMorApp('${m.id}')" style="color:#c00;border:0;background:none">Excluir</button></div>`).join('');}
+async function carregarMorApp(){let r=await fetch('/api/app/moradores',{headers:{Authorization:'Bearer '+APP_TOKEN}});let mors=await r.json();document.getElementById('listaMorApp').innerHTML=mors.map(m=>`<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee"><span>${m.nome} - Bl ${m.bloco} Ap ${m.apto||m.apartamento||''}</span><button onclick="delMorApp('${m.id}')" style="color:#c00;border:0;background:none">Excluir</button></div>`).join('');}
 async function addMorApp(){let nome=document.getElementById('novoNome').value,bloco=document.getElementById('novoBloco').value,apto=document.getElementById('novoApto').value;if(!nome)return alert('Nome obrigatório');let r=await fetch('/api/app/moradores',{method:'POST',headers:{Authorization:'Bearer '+APP_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({nome,bloco,apto})});if(r.ok){document.getElementById('novoNome').value='';carregarMorApp();}else alert('Erro');}
 async function delMorApp(id){if(!confirm('Excluir morador? Será auditado.'))return;let r=await fetch('/api/app/moradores?id='+id,{method:'DELETE',headers:{Authorization:'Bearer '+APP_TOKEN}});if(r.ok)carregarMorApp();}
-function appLogout(){localStorage.removeItem('sc_app_token');location.reload();}
+
+function appLogout(){localStorage.removeItem('sc_app_token');localStorage.removeItem('sc_app_user');location.reload();}
+
+// AUTO-LOGIN - FICA LOGADO
+(function(){
+  let t=localStorage.getItem('sc_app_token');
+  let u=localStorage.getItem('sc_app_user');
+  if(t && u){
+    try{ setAppLogged(JSON.parse(u), t); }catch{}
+  }
+})();
 </script>
 </body>
 </html>
