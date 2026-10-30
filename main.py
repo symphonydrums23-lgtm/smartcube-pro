@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
-import json, os, secrets, uuid, csv, io, time, jwt
+import json, os, secrets, uuid, csv, io, time, jwt, threading
 from collections import defaultdict
 from dotenv import load_dotenv
 load_dotenv()
@@ -14,6 +14,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 SECRET_JWT = os.getenv("SECRET_JWT", "smartcube-secret-2026-fallback")
+
+# TRAVA PARA JSON - 100 armarios
+FILE_LOCK = threading.Lock()
+
 def get_path(nome):
     for base in [TEMPLATES_DIR, STATIC_DIR, BASE_DIR]:
         p = os.path.join(base, nome)
@@ -29,9 +33,10 @@ def load_json(path, default):
     except: return default
 def save_json(path, data):
     full_path = os.path.join(BASE_DIR, path)
-    with open(full_path,'w',encoding='utf-8') as f: json.dump(data,f,ensure_ascii=False,indent=2)
+    with FILE_LOCK:
+        with open(full_path,'w',encoding='utf-8') as f: json.dump(data,f,ensure_ascii=False,indent=2)
+
 ARQ_TOKENS = "tokens.json"; ARQ_DADOS = "dashboard_dados.json"; ARQ_KEYS = "api_keys.json"; ARQ_BOXES = "boxes.json"; ARQ_HIST = "historico.json"; ARQ_AUDIT = "auditoria.json"; ARQ_LOGIN = "login_attempts.json"; ARQ_CONDS = "condominios.json"; ARQ_MORS = "moradores.json"; ARQ_APP_USERS = "app_users.json"
-# IA PACK v5.5 NUVEM READY - ARQUIVOS - ADD ONLY
 ARQ_CACHE_IA = "ia_cache.json"; ARQ_BLOQUEIOS = "ia_bloqueios.json"; ARQ_IA_LOGS = "ia_logs.json"
 
 def no_cache_html(path):
@@ -67,6 +72,16 @@ def requer_auth(request: Request, authorization: str = Header(None), token: str 
     if not t: t = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
     if not t or not is_token_valid(t): raise HTTPException(status_code=401, detail="Token inválido")
     return t
+
+# AUTH OPCIONAL - PARA TABLET NAO DAR 401 - NAO MUDA ROTA
+def requer_auth_opcional(request: Request, authorization: str = Header(None), token: str = Query(None)):
+    t = ""
+    if authorization and "Bearer" in authorization: t = authorization.replace("Bearer ","").strip()
+    if not t: t = token or ""
+    if not t: t = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
+    if t and not is_token_valid(t): raise HTTPException(status_code=401, detail="Token inválido")
+    return t or "tablet_public"
+
 def check_rate_limit(request: Request):
     ip = request.client.host if request.client else "unknown"; now = time.time()
     LOGIN_TENTATIVAS[ip] = [x for x in LOGIN_TENTATIVAS[ip] if now - x < 900]
@@ -128,6 +143,25 @@ async def dashboard_page(request: Request):
     if not token or not is_token_valid(token): return RedirectResponse(url="/login", status_code=302)
     try: return templates.TemplateResponse("dashboard.html", {"request": request})
     except: return no_cache_html(get_path("dashboard.html"))
+
+# HELPER BOX LIVRE - NAO MUDA ROTA
+def get_box_livre(dados):
+    ocupados = set()
+    for x in dados.get("lista", []):
+        try:
+            b = str(x.get("box","")).lstrip("0") or "0"
+            ocupados.add(b)
+            ocupados.add(str(x.get("box","")).zfill(2))
+            ocupados.add(str(x.get("box","")))
+        except: pass
+    total = int(dados.get("total_boxes",16))
+    for i in range(1, total+1):
+        s = str(i)
+        s2 = f"{i:02d}"
+        if s not in ocupados and s2 not in ocupados:
+            return s2
+    return f"{total:02d}"
+
 @app.get("/api/condominios")
 def listar_conds(): return load_json(ARQ_CONDS, [{"id":"1","nome":"Todos condomínios"}])
 @app.get("/api/condominios/{cond_id}")
@@ -150,8 +184,9 @@ def get_cond(cond_id: str):
 @app.post("/api/tablet/entrega")
 async def tablet_entrega(payload: dict, request: Request = None):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
-    nova = {"box": str(payload.get("box","1")),"bloco": payload.get("bloco",""),"apartamento": payload.get("apartamento") or payload.get("apto",""),"codigo": payload.get("codigo",""),"codigo_retirada": payload.get("codigo_retirada") or payload.get("codigo",""),"protocolo": payload.get("protocolo") or f"SC-{secrets.randbelow(90000)+10000}","data": datetime.now().strftime("%d/%m/%Y"),"hora": datetime.now().strftime("%H:%M"),"nome": payload.get("nome",""),"created_at": datetime.now().isoformat()}
-    dados["lista"].append(nova); dados["ocupados"] = len(dados["lista"]); dados["livres"] = dados.get("total_boxes",16) - dados["ocupados"]; dados["ocupacao"] = int(dados["ocupados"]/dados.get("total_boxes",16)*100); save_json(ARQ_DADOS, dados); registrar_auditoria("ENTREGA_TABLET", detalhes=f"Entrega Box {nova['box']}", request=request); return {"ok": True, "protocolo": nova["protocolo"]}
+    box_escolhido = payload.get("box") or get_box_livre(dados)
+    nova = {"box": str(box_escolhido).zfill(2),"bloco": payload.get("bloco",""),"apartamento": payload.get("apartamento") or payload.get("apto",""),"codigo": payload.get("codigo",""),"codigo_retirada": payload.get("codigo_retirada") or payload.get("codigo",""),"protocolo": payload.get("protocolo") or f"SC-{secrets.randbelow(90000)+10000}","data": datetime.now().strftime("%d/%m/%Y"),"hora": datetime.now().strftime("%H:%M"),"nome": payload.get("nome",""),"created_at": datetime.now().isoformat(),"condominio_id": str(payload.get("condominio_id","1"))}
+    dados["lista"].append(nova); dados["ocupados"] = len(dados["lista"]); dados["livres"] = dados.get("total_boxes",16) - dados["ocupados"]; dados["ocupacao"] = int(dados["ocupados"]/dados.get("total_boxes",16)*100); save_json(ARQ_DADOS, dados); registrar_auditoria("ENTREGA_TABLET", detalhes=f"Entrega Box {nova['box']}", request=request); return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"]}
 @app.post("/api/tablet/retirada")
 async def tablet_retirada(payload: dict, request: Request = None):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
@@ -205,8 +240,9 @@ async def import_csv(file: UploadFile = File(...), condominio: str = Form(...), 
 def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
     raw = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
     lista_all = raw.get("lista", []); hist_all = raw.get("historico", [])
+    # FIX VAZAMENTO - sem "or condominio_id not in x"
     if str(condominio) == "1": lista = lista_all; historico = hist_all
-    else: lista = [x for x in lista_all if str(x.get("condominio_id","1")) == str(condominio)]; historico = [x for x in hist_all if str(x.get("condominio_id","1")) == str(condominio)]
+    else: lista = [x for x in lista_all if str(x.get("condominio_id")) == str(condominio)]; historico = [x for x in hist_all if str(x.get("condominio_id")) == str(condominio)]
     total_boxes = raw.get("total_boxes", 16); ocupados = len(lista); livres = max(0, int(total_boxes) - ocupados); ocupacao = int((ocupados / int(total_boxes) * 100)) if int(total_boxes) > 0 else 0; agora = datetime.now()
     return {"total_boxes": int(total_boxes),"livres": livres,"ocupados": ocupados,"ocupacao": ocupacao,"vencidas": 0,"por_hora": [0]*24,"lista": lista,"historico": historico,"vencidas_lista": [],"timestamp": agora.isoformat(),"atualizado": agora.strftime("%H:%M:%S")}
 @app.post("/api/integracao/gerar")
@@ -239,23 +275,28 @@ def logout_token(authorization: str = Header(None), request: Request = None):
 @app.post("/api/entregas")
 async def api_entregas_compat(payload: dict, request: Request = None):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
-    nova = {"box": str(payload.get("box","07")),"bloco": payload.get("bloco",""),"apartamento": payload.get("apartamento") or payload.get("apto",""),"codigo": payload.get("codigo") or payload.get("protocolo") or "","codigo_retirada": payload.get("codigo_retirada") or payload.get("codigo") or "","protocolo": payload.get("protocolo") or payload.get("codigo") or f"SC-{secrets.randbelow(90000)+10000}","data": payload.get("data") or datetime.now().strftime("%d/%m/%Y"),"hora": payload.get("hora") or datetime.now().strftime("%H:%M"),"nome": payload.get("condominio_nome") or payload.get("nome",""),"created_at": payload.get("data_hora") or datetime.now().isoformat(),"condominio_id": str(payload.get("condominio_id","1"))}
-    if not any(x.get("protocolo")==nova["protocolo"] for x in dados.get("lista",[])): dados["lista"].append(nova); save_json(ARQ_DADOS, dados); registrar_auditoria("ENTREGA_API", detalhes=f"Entrega {nova['protocolo']}", request=request)
+    # BOX DINAMICO - se mandar 07 fixo, corrige pro livre
+    box_req = payload.get("box","")
+    if not box_req or box_req=="07" or box_req=="7":
+        box_req = get_box_livre(dados)
+    nova = {"box": str(box_req).zfill(2),"bloco": payload.get("bloco",""),"apartamento": payload.get("apartamento") or payload.get("apto",""),"codigo": payload.get("codigo") or payload.get("protocolo") or "","codigo_retirada": payload.get("codigo_retirada") or payload.get("codigo") or "","protocolo": payload.get("protocolo") or payload.get("codigo") or f"SC-{secrets.randbelow(90000)+10000}","data": payload.get("data") or datetime.now().strftime("%d/%m/%Y"),"hora": payload.get("hora") or datetime.now().strftime("%H:%M"),"nome": payload.get("condominio_nome") or payload.get("nome",""),"created_at": payload.get("data_hora") or datetime.now().isoformat(),"condominio_id": str(payload.get("condominio_id","1"))}
+    if not any(x.get("protocolo")==nova["protocolo"] for x in dados.get("lista",[])): dados["lista"].append(nova); save_json(ARQ_DADOS, dados); registrar_auditoria("ENTREGA_API", detalhes=f"Entrega {nova['protocolo']} Box {nova['box']}", request=request)
     return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"]}
 @app.get("/api/entregas")
 def api_listar_entregas_compat(condominio: str = "1", token: str = Depends(requer_auth)):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
     if condominio=="1": return dados.get("lista",[])
-    return [e for e in dados.get("lista",[]) if str(e.get("condominio_id","1"))==str(condominio) or "condominio_id" not in e]
+    return [e for e in dados.get("lista",[]) if str(e.get("condominio_id"))==str(condominio)]
 @app.post("/api/retiradas")
 async def api_retiradas_compat(payload: dict, request: Request = None):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]})
-    codigo = payload.get("protocolo") or payload.get("codigo") or ""; achado = None; nova_lista = []
+    codigo = payload.get("protocolo") or payload.get("codigo") or payload.get("codigo_retirada") or ""; achado = None; nova_lista = []
     for item in dados.get("lista",[]):
         if str(item.get("codigo"))==str(codigo) or str(item.get("codigo_retirada"))==str(codigo) or str(item.get("protocolo"))==str(codigo): achado = item
         else: nova_lista.append(item)
-    if achado: achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y"); dados["lista"] = nova_lista; dados["historico"].append(achado); save_json(ARQ_DADOS, dados); registrar_auditoria("RETIRADA_API", detalhes=f"Retirada {codigo}", request=request); return {"ok": True, "box": achado["box"]}
-    return {"ok": True, "msg": "Registrado"}
+    if achado: achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y"); dados["lista"] = nova_lista; dados["historico"].append(achado); save_json(ARQ_DADOS, dados); registrar_auditoria("RETIRADA_API", detalhes=f"Retirada {codigo} Box {achado['box']}", request=request); return {"ok": True, "box": achado["box"]}
+    # AGORA RETORNA 404 REAL - PRA TABLET VALIDAR
+    raise HTTPException(status_code=404, detail="Código não encontrado")
 @app.get("/api/retiradas")
 def api_listar_retiradas_compat(condominio: str = "1", token: str = Depends(requer_auth)): dados = load_json(ARQ_DADOS, {"total_boxes":16,"livres":15,"ocupados":1,"ocupacao":6,"vencidas":0,"por_hora":[0]*24,"lista":[],"historico":[],"vencidas_lista":[]}); return dados.get("historico",[])[-100:]
 def get_app_users(): return load_json(ARQ_APP_USERS, [])
@@ -308,7 +349,6 @@ def app_page(): return no_cache_html(get_path("app.html"))
 
 # =========================================================
 # IA PACK v5.5 - INICIO - 6 IAs NUVEM READY - ADD-ONLY
-# Não altera nenhuma rota acima. Motor único pra 100 armários + franquias
 # =========================================================
 
 def _get_cache_ia(condominio_id: str):
@@ -326,14 +366,18 @@ def _set_cache_ia(condominio_id: str, data: dict):
     cache[str(condominio_id)] = {"ts": time.time(), "data": data}
     save_json(ARQ_CACHE_IA, cache)
 
-# 1 - IA LOTAÇÃO 24H + PREVISÃO - DASHBOARD
+# 1 - IA LOTAÇÃO 24H + PREVISÃO - DASHBOARD - AGORA SEM 401 NO TABLET
 @app.get("/api/ia/lotacao-24h")
-def ia_lotacao_24h(condominio: str = "1", request: Request = None, token: str = Depends(requer_auth)):
+def ia_lotacao_24h(condominio: str = "1", request: Request = None, token: str = Depends(requer_auth_opcional)):
     cached = _get_cache_ia("lotacao_"+condominio)
     if cached: return cached
     raw = load_json(ARQ_DADOS, {"lista":[],"historico":[]})
     lista_all = raw.get("lista", [])
-    lista = lista_all if str(condominio)=="1" else [x for x in lista_all if str(x.get("condominio_id","1"))==str(condominio) or "condominio_id" not in x]
+    # FIX VAZAMENTO
+    if str(condominio)=="1":
+        lista = lista_all
+    else:
+        lista = [x for x in lista_all if str(x.get("condominio_id"))==str(condominio)]
     agora = datetime.now(); alertas = []
     for e in lista:
         try:
@@ -356,7 +400,6 @@ def ia_lotacao_24h(condominio: str = "1", request: Request = None, token: str = 
     _set_cache_ia("lotacao_"+condominio, resultado)
     return resultado
 
-# 2 - IA ASSISTENTE SÍNDICO - SÓ APP (como pediu)
 @app.post("/api/ia/sindico/pergunta")
 def ia_sindico_pergunta(payload: dict, request: Request = None, token_data: dict = Depends(verificar_app_token)):
     if token_data.get("role")!="sindico": raise HTTPException(403, "Apenas síndico")
@@ -364,8 +407,7 @@ def ia_sindico_pergunta(payload: dict, request: Request = None, token_data: dict
     cond_id = token_data.get("condominio","1")
     dados = load_json(ARQ_DADOS, {"lista":[],"historico":[]})
     mors = load_json(ARQ_MORS, [])
-    lista = [x for x in dados.get("lista",[]) if str(x.get("condominio_id","1"))==str(cond_id) or "condominio_id" not in x]
-    # IA simples baseada em regras, mas nuvem-ready pra trocar por LLM depois
+    lista = [x for x in dados.get("lista",[]) if str(x.get("condominio_id"))==str(cond_id)]
     if "atrasada" in pergunta or "24h" in pergunta:
         atrasadas = 0
         for e in lista:
@@ -383,7 +425,6 @@ def ia_sindico_pergunta(payload: dict, request: Request = None, token_data: dict
     registrar_auditoria("IA_SINDICO_PERGUNTA", usuario=token_data.get("nome"), detalhes=pergunta[:100], condominio_id=cond_id, request=request)
     return {"resposta": resposta, "condominio": cond_id, "versao":"v5.5"}
 
-# 3 e 5 - IA SEGURANÇA GLOBAL + TABLET
 @app.get("/api/ia/seguranca/status")
 def ia_seguranca_status(token: str = Depends(requer_auth)):
     bloqueios = load_json(ARQ_BLOQUEIOS, {})
@@ -399,24 +440,20 @@ def _check_bloqueio(ip: str) -> bool:
     save_json(ARQ_BLOQUEIOS, bloqueios)
     return False
 
-# 4 - IA GESTORA CADASTRO
 @app.post("/api/ia/gestora/convite")
 def ia_gestora_convite(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
     cond_id = payload.get("condominio_id")
     bloco = payload.get("bloco",""); apto = payload.get("apto",""); nome = payload.get("nome","Morador")
     if not cond_id: raise HTTPException(400, "condominio_id obrigatório")
-    # cria usuário no app_users e gera link WhatsApp
     users = load_json(ARQ_APP_USERS, [])
     user_id = str(uuid.uuid4())[:8]
     novo = {"id": user_id, "condominio": str(cond_id), "bloco": bloco, "apto": apto, "nome": nome, "role": payload.get("role","morador"), "criado_em": datetime.now().isoformat(), "origem": "ia_gestora"}
     users.append(novo)
     save_json(ARQ_APP_USERS, users)
-    # link que síndico manda no WhatsApp
     link = f"/app?condominio={cond_id}&bloco={bloco}&apto={apto}&convite={user_id}"
     registrar_auditoria("IA_GESTORA_CONVITE", detalhes=f"Convite {nome} Bl {bloco} Ap {apto}", condominio_id=cond_id, request=request)
     return {"ok": True, "link": link, "mensagem_whatsapp": f"Olá {nome}! Seu acesso ao Smart Cube: {link} - Bl {bloco} Ap {apto}", "versao":"v5.5"}
 
-# 6 - IA ASSISTENTE TABLET + SEGURANÇA TABLET
 @app.post("/api/ia/tablet/assistente")
 def ia_tablet_assistente(payload: dict, request: Request = None):
     ip = request.client.host if request.client else "unknown"
@@ -433,13 +470,8 @@ def ia_tablet_assistente(payload: dict, request: Request = None):
         resposta = "Sou a IA do tablet. Posso ajudar: 'qual box livre?', 'código não funciona?'"
     return {"resposta": resposta, "versao":"v5.5"}
 
-# LOG IA - pra nuvem depois virar dashboard
 @app.get("/api/ia/logs")
 def ia_logs(token: str = Depends(requer_auth)):
     return load_json(ARQ_IA_LOGS, [])[::-1][:100]
-
-# =========================================================
-# IA PACK v5.5 - FIM
-# =========================================================
 
 if __name__ == "__main__": import uvicorn; uvicorn.run(app, host="0.0.0.0", port=5000)
