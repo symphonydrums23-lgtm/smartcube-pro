@@ -77,7 +77,7 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="icon-circle">✅</div>
 <div class="h1">Entrega registrada!</div>
 <div class="sub">Box liberado com sucesso</div>
-<div class="status-box"><b>🔓 BOX 07 ABERTO - COLOQUE A ENCOMENDA<br>E FECHE A PORTA</b></div>
+<div class="status-box"><b id="boxStatus">🔓 BOX 07 ABERTO - COLOQUE A ENCOMENDA<br>E FECHE A PORTA</b></div>
 <div class="receipt">
 <div class="receipt-title">COMPROVANTE DE ENTREGA</div>
 <div class="row"><span>Protocolo</span><span id="protocolo">SC-000000</span></div>
@@ -87,7 +87,7 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="row"><span>Bloco</span><span id="bTxt">B</span></div>
 <div class="row"><span>Apartamento</span><span id="aTxt">303</span></div>
 <div class="row"><span>Tamanho</span><span id="tTxt">P</span></div>
-<div class="row"><span>Box</span><span style="color:#FF6A00">07</span></div>
+<div class="row"><span>Box</span><span style="color:#FF6A00" id="boxRecibo">07</span></div>
 <div class="row"><span>Status</span><span style="color:#2e7d32">● ENTREGUE NO BOX</span></div>
 </div>
 <button class="btn-primary" onclick="location.href='/tablet'">CONCLUIR ✓</button>
@@ -135,10 +135,11 @@ async function confirmar(){
   document.getElementById('protocolo').innerText=p;
   document.getElementById('dataTxt').innerText=dataStr;
   document.getElementById('horaTxt').innerText=horaStr;
-  document.getElementById('s2').classList.remove('active');
-  document.getElementById('s3').classList.add('active');
+
+  // ENVIA SEM BOX FIXO - BACKEND ESCOLHE O LIVRE (NOVO MAIN.PY)
+  let boxReal = '07';
   try{
-    await fetch('/api/entregas',{
+    let resp = await fetch('/api/entregas',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
@@ -148,14 +149,23 @@ async function confirmar(){
         bloco:bloco,
         apartamento:apto,
         tamanho:tam,
-        box:'07',
         data_hora:n.toISOString(),
         data:dataStr,
         hora:horaStr,
         status:'ENTREGUE NO BOX'
       })
     });
+    if(resp.ok){
+      let d = await resp.json();
+      if(d.box) boxReal = d.box;
+    }
   }catch(err){ console.log('Erro backend:', err); }
+
+  document.getElementById('boxRecibo').innerText = boxReal;
+  document.getElementById('boxStatus').innerHTML = `🔓 BOX ${boxReal} ABERTO - COLOQUE A ENCOMENDA<br>E FECHE A PORTA`;
+
+  document.getElementById('s2').classList.remove('active');
+  document.getElementById('s3').classList.add('active');
 }
 </script>
 </body>
