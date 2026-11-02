@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
@@ -25,7 +25,7 @@ ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS if o.strip()]
 app = FastAPI(title="SmartCube API v5.6")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,  # ETAPA 2: NAO MAIS "*"
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET","POST","PUT","DELETE"],
     allow_headers=["*"],
@@ -71,7 +71,6 @@ def no_cache_html(path):
         return HTMLResponse(content=content, headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
     return HTMLResponse(f"<h1>Arquivo nao encontrado: {path}</h1>", status_code=404)
 
-# ========= HASH SENHA - ETAPA 2 =========
 def hash_senha(senha: str) -> str:
     salt = secrets.token_bytes(16)
     pwdhash = hashlib.pbkdf2_hmac('sha256', senha.encode('utf-8'), salt, 100000)
@@ -80,7 +79,6 @@ def hash_senha(senha: str) -> str:
 def verificar_senha(stored: str, provided: str) -> bool:
     try:
         if not stored or not provided: return False
-        # compat: se ainda for texto puro antigo
         if len(stored) < 64 and stored == provided: return True
         b = binascii.unhexlify(stored.encode('ascii'))
         salt = b[:16]
@@ -150,7 +148,6 @@ def check_rate_limit(request: Request):
         raise HTTPException(429, "Muitas tentativas. Aguarde 15 min")
     return ip
 
-# ETAPA 2 BUG CORRIGIDO: save_json FORA do if
 def registrar_auditoria(acao, usuario="sistema", detalhes="", condominio_id="", request: Request = None):
     logs = load_json(ARQ_AUDIT, [])
     ip = "sistema"
@@ -164,7 +161,7 @@ def registrar_auditoria(acao, usuario="sistema", detalhes="", condominio_id="", 
     })
     if len(logs) > 1000:
         logs = logs[-1000:]
-    save_json(ARQ_AUDIT, logs)  # SEMPRE SALVA
+    save_json(ARQ_AUDIT, logs)
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -216,14 +213,12 @@ def get_box_livre(dados):
             return f"{i:02d}"
     return f"{total:02d}"
 
-# ========= CONDOMINIOS - ETAPA 2: PROTEGIDO =========
 @app.get("/api/condominios")
 def listar_conds(token: str = Depends(requer_auth)):
     return load_json(ARQ_CONDS, [])
 
 @app.get("/api/condominios/public")
 def conds_public():
-    # ROTA PUBLICA MINIMA - ETAPA 2
     conds = load_json(ARQ_CONDS, [])
     return [{"id": c["id"], "nome": c["nome"]} for c in conds if str(c["id"])!="1"]
 
@@ -243,7 +238,6 @@ def get_cond(cond_id: str, token: str = Depends(requer_auth)):
             return c
     raise HTTPException(404, "Condomínio não encontrado")
 
-# ========= TABLET - SEM AUTH MAS COM RATE LIMIT =========
 @app.post("/api/tablet/entrega")
 async def tablet_entrega(payload: dict, request: Request = None):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
@@ -325,11 +319,9 @@ def deletar_mor(id: str = Query(...), request: Request = None, token: str = Depe
     mors = load_json(ARQ_MORS, []); mors=[m for m in mors if str(m["id"])!=str(id)]
     save_json(ARQ_MORS, mors); return {"ok":True}
 
-# ETAPA 2: CSV DELIMITER CORRIGIDO
 @app.post("/api/moradores/import")
 async def import_csv(file: UploadFile = File(...), condominio: str = Form(...), request: Request = None, token: str = Depends(requer_auth)):
     content = (await file.read()).decode('utf-8', errors='ignore')
-    # detecta ; ou ,
     delimiter = ';' if content.count(';') > content.count(',') else ','
     reader = csv.DictReader(io.StringIO(content), delimiter=delimiter)
     mors = load_json(ARQ_MORS, []); count=0
@@ -352,6 +344,7 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
     ocupados=len(lista); livres=max(0,int(total_boxes)-ocupados)
     return {"total_boxes":int(total_boxes),"livres":livres,"ocupados":ocupados,"lista":lista,"historico":historico,"timestamp":datetime.now().isoformat()}
 
+# ========= CORRECAO DA FALHA - APENAS ISSO =========
 @app.post("/api/auth/login")
 def auth_login(payload: dict, request: Request):
     ip = check_rate_limit(request)
@@ -362,13 +355,25 @@ def auth_login(payload: dict, request: Request):
         TOKENS_VALIDOS[token] = {"user": usuario,"expires": datetime.now() + timedelta(hours=8),"ip": ip}
         save_tokens()
         registrar_auditoria("LOGIN_SUCESSO", usuario=usuario, request=request)
-        return {"ok": True, "token": token, "expires_in": 28800}
+        resp = JSONResponse({"ok": True, "token": token, "expires_in": 28800})
+        resp.set_cookie(key="sc_token", value=token, httponly=False, max_age=28800, samesite="Lax", path="/")
+        return resp
     LOGIN_TENTATIVAS[ip].append(time.time())
     raise HTTPException(401, "Usuário ou senha inválido")
 
+@app.get("/api/auth/verificar")
+def auth_verificar(token: str = Depends(requer_auth)):
+    dados = TOKENS_VALIDOS.get(token, {})
+    return {"ok": True, "user": dados.get("user","admin")}
+
+@app.post("/api/auth/verificar")
+def auth_verificar_post(token: str = Depends(requer_auth)):
+    dados = TOKENS_VALIDOS.get(token, {})
+    return {"ok": True, "user": dados.get("user","admin")}
+# ========= FIM DA CORRECAO =========
+
 @app.post("/api/entregas")
 async def api_entregas_compat(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
-    # ETAPA 2: AGORA EXIGE AUTH
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     box_req = payload.get("box","")
     if not box_req or box_req=="07" or box_req=="7": box_req=get_box_livre(dados)
@@ -379,7 +384,6 @@ async def api_entregas_compat(payload: dict, request: Request = None, token: str
 
 @app.post("/api/retiradas")
 async def api_retiradas_compat(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
-    # ETAPA 2: AGORA EXIGE AUTH + 404 REAL
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     codigo = payload.get("protocolo") or payload.get("codigo") or ""
     achado=None; nova_lista=[]
@@ -392,7 +396,6 @@ async def api_retiradas_compat(payload: dict, request: Request = None, token: st
         return {"ok": True, "box": achado["box"]}
     raise HTTPException(404, "Código não encontrado")
 
-# ========= APP - ETAPA 2 CORRIGIDO - SEM SENHA MESTRE =========
 def get_app_users(): return load_json(ARQ_APP_USERS, [])
 def save_app_users(data): save_json(ARQ_APP_USERS, data)
 
@@ -410,39 +413,28 @@ def app_login(payload: dict, request: Request):
     bloco = str(payload.get("bloco","")).strip()
     apto = str(payload.get("apto","")).strip()
     senha = str(payload.get("senha","")).strip()
-
-    # ETAPA 2: REMOVE ADMIN_PASS COMO MESTRE
     mors = load_json(ARQ_MORS, [])
     mor = next((m for m in mors if str(m.get("condominio"))==condominio and str(m.get("bloco")).lower()==bloco.lower() and str(m.get("apto") or m.get("apartamento","")).lower()==apto.lower()), None)
     if not mor:
         raise HTTPException(401, "Morador não encontrado")
-
     users = get_app_users()
     u = next((x for x in users if x.get("condominio")==condominio and x.get("bloco")==bloco and x.get("apto")==apto), None)
-
-    # ETAPA 2: EXIGE CONTA EM app_users.json
     if not u:
         raise HTTPException(401, "Conta de app não cadastrada. Solicite ao síndico")
-
-    # ETAPA 2: VALIDA SENHA COM HASH
     if not u.get("senha_hash") and not u.get("senha"):
         raise HTTPException(401, "Senha não configurada. Solicite reset ao síndico")
-
     senha_ok = False
     if u.get("senha_hash"):
         senha_ok = verificar_senha(u["senha_hash"], senha)
     elif u.get("senha"):
         senha_ok = u.get("senha") == senha
-        # migra para hash
         if senha_ok:
             u["senha_hash"] = hash_senha(senha)
             del u["senha"]
             save_app_users(users)
-
     if not senha_ok:
         registrar_auditoria("LOGIN_APP_FALHA", usuario=bloco+"/"+apto, condominio_id=condominio, request=request)
         raise HTTPException(401, "Senha inválida")
-
     role = u.get("role","morador")
     token = jwt.encode({"sub": f"{condominio}-{bloco}-{apto}", "condominio": condominio, "bloco": bloco, "apto": apto, "role": role, "nome": mor["nome"], "exp": datetime.now()+timedelta(days=30)}, SECRET_JWT, algorithm="HS256")
     registrar_auditoria("LOGIN_APP", usuario=mor["nome"], condominio_id=condominio, request=request)
@@ -462,7 +454,6 @@ def app_relatorios(token_data: dict = Depends(verificar_app_token)):
 @app.get("/app", response_class=HTMLResponse)
 def app_page(): return no_cache_html(get_path("app.html"))
 
-# IA PACK v5.6 - MANTIDO
 def _get_cache_ia(k):
     dados = load_json(ARQ_CACHE_IA, {})
     item = dados.get(k)
