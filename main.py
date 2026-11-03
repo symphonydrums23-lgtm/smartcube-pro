@@ -534,6 +534,31 @@ def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcio
     _set_cache_ia("lotacao_"+condominio, resultado)
     return resultado
 
+# ===== NOVO - ABERTURA REMOTA - COLAR AQUI =====
+@app.post("/api/admin/abrir-box/{box_id}")
+def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_auth)):
+    box_id = str(box_id).zfill(2)
+    if not box_id.isdigit() or not 1 <= int(box_id) <= 32:
+        raise HTTPException(400, "Box inválido")
+    registrar_auditoria("ABERTURA_REMOTA_ADMIN", usuario=TOKENS_VALIDOS.get(token,{}).get("user","admin"), detalhes=f"Abertura remota Box {box_id}", request=request)
+    dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+    achado = None
+    nova_lista = []
+    for item in dados.get("lista",[]):
+        if str(item.get("box")).zfill(2) == box_id:
+            achado = item
+        else:
+            nova_lista.append(item)
+    if achado:
+        achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y")
+        achado["hora_retirada"] = datetime.now().strftime("%H:%M")
+        achado["retirada_por"] = "ADMIN_REMOTO"
+        dados["lista"] = nova_lista
+        dados["historico"].append(achado)
+        save_json(ARQ_DADOS, dados)
+    return {"ok": True, "box": box_id, "msg": f"Comando de abertura enviado para Box {box_id}"}
+# ===== FIM NOVO =====
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5000)
