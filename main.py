@@ -163,6 +163,13 @@ def registrar_auditoria(acao, usuario="sistema", detalhes="", condominio_id="", 
         logs = logs[-1000:]
     save_json(ARQ_AUDIT, logs)
 
+# === FIX AUDITORIA - ADICIONADO SEM ALTERAR NADA ===
+@app.get("/api/auditoria")
+def listar_auditoria(request: Request, token: str = Depends(requer_auth)):
+    logs = load_json(ARQ_AUDIT, [])
+    return logs[::-1][:200]
+# === FIM FIX AUDITORIA ===
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -373,11 +380,36 @@ async def import_csv(file: UploadFile = File(...), condominio: str = Form(...), 
 def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
     raw = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     lista_all = raw.get("lista", []); hist_all = raw.get("historico", [])
-    if str(condominio) == "1": lista=lista_all; historico=hist_all
-    else: lista=[x for x in lista_all if str(x.get("condominio_id"))==str(condominio)]; historico=[x for x in hist_all if str(x.get("condominio_id"))==str(condominio)]
+    if str(condominio) == "1": 
+        lista=lista_all; historico=hist_all
+    else: 
+        lista=[x for x in lista_all if str(x.get("condominio_id"))==str(condominio)]
+        historico=[x for x in hist_all if str(x.get("condominio_id"))==str(condominio)]
     total_boxes = raw.get("total_boxes",16)
     ocupados=len(lista); livres=max(0,int(total_boxes)-ocupados)
-    return {"total_boxes":int(total_boxes),"livres":livres,"ocupados":ocupados,"lista":lista,"historico":historico,"timestamp":datetime.now().isoformat()}
+    # calcula vencidas >72h sem quebrar rota
+    vencidas_lista = []
+    agora = datetime.now()
+    for item in lista:
+        try:
+            created = datetime.fromisoformat(item.get("created_at",""))
+            if (agora - created).total_seconds() / 3600 > 72:
+                vencidas_lista.append(item)
+        except:
+            pass
+    return {
+        "total_boxes":int(total_boxes),
+        "livres":livres,
+        "ocupados":ocupados,
+        "lista":lista,
+        "historico":historico,
+        "vencidas": len(vencidas_lista),
+        "vencidas_lista": vencidas_lista,
+        "retiradas_total": len(historico),
+        "por_hora": raw.get("por_hora", [0]*24),
+        "atualizado": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "timestamp":datetime.now().isoformat()
+    }
 
 @app.post("/api/auth/login")
 def auth_login(payload: dict, request: Request):
@@ -534,7 +566,7 @@ def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcio
     _set_cache_ia("lotacao_"+condominio, resultado)
     return resultado
 
-# ===== NOVO - ABERTURA REMOTA - COLAR AQUI =====
+# ===== NOVO - ABERTURA REMOTA - MANTIDO IGUAL =====
 @app.post("/api/admin/abrir-box/{box_id}")
 def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_auth)):
     box_id = str(box_id).zfill(2)
