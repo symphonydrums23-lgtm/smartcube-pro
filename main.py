@@ -4,12 +4,11 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSON
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
-import json, os, secrets, uuid, csv, io, time, jwt, threading, hashlib, binascii
+import json, os, secrets, uuid, csv, io, time, jwt, threading, hashlib, binascii, random
 from collections import defaultdict
 from dotenv import load_dotenv
 load_dotenv()
 
-# ========= SEGURANCA - ETAPA 2 CORRIGIDA - SEM FALLBACK =========
 SECRET_JWT = os.getenv("SECRET_JWT")
 if not SECRET_JWT or len(SECRET_JWT) < 32:
     raise RuntimeError("SECRET_JWT ausente ou fraco (<32 chars). Defina no .env")
@@ -34,6 +33,9 @@ app.add_middleware(
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
+ALT_TEMPLATES = os.path.join(BASE_DIR, "modelos")
+if not os.path.exists(TEMPLATES_DIR) and os.path.exists(ALT_TEMPLATES):
+    TEMPLATES_DIR = ALT_TEMPLATES
 
 FILE_LOCK = threading.Lock()
 
@@ -163,12 +165,10 @@ def registrar_auditoria(acao, usuario="sistema", detalhes="", condominio_id="", 
         logs = logs[-1000:]
     save_json(ARQ_AUDIT, logs)
 
-# === FIX AUDITORIA - ADICIONADO SEM ALTERAR NADA ===
 @app.get("/api/auditoria")
 def listar_auditoria(request: Request, token: str = Depends(requer_auth)):
     logs = load_json(ARQ_AUDIT, [])
     return logs[::-1][:200]
-# === FIM FIX AUDITORIA ===
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -220,18 +220,54 @@ def get_box_livre(dados):
             return f"{i:02d}"
     return f"{total:02d}"
 
+# ====== CORRECAO 01 - NUMERO ARMARIO AUTO ======
+def gerar_codigo_armario():
+    conds = load_json(ARQ_CONDS, [])
+    existentes = set()
+    for c in conds:
+        for key in ["codigo_armario", "armario_numero", "armario_id", "codigo"]:
+            v = c.get(key)
+            if v and str(v).startswith("ARM-"):
+                existentes.add(str(v))
+    for _ in range(100):
+        novo = f"ARM-{random.randint(10000, 99999)}"
+        if novo not in existentes:
+            return novo
+    return f"ARM-{random.randint(10000, 99999)}"
+
+def garantir_codigo_armario(conds_list):
+    alterado = False
+    for c in conds_list:
+        codigo_atual = c.get("codigo_armario") or c.get("armario_numero") or c.get("armario_id") or ""
+        if not codigo_atual or not str(codigo_atual).startswith("ARM-"):
+            c["codigo_armario"] = gerar_codigo_armario()
+            c["armario_numero"] = c["codigo_armario"]
+            c["armario_id"] = c["codigo_armario"]
+            alterado = True
+        else:
+            if not c.get("codigo_armario"): c["codigo_armario"] = codigo_atual
+            if not c.get("armario_numero"): c["armario_numero"] = codigo_atual
+            if not c.get("armario_id"): c["armario_id"] = codigo_atual
+    if alterado:
+        save_json(ARQ_CONDS, conds_list)
+    return conds_list
+
 @app.get("/api/condominios")
 def listar_conds(token: str = Depends(requer_auth)):
-    return load_json(ARQ_CONDS, [])
+    conds = load_json(ARQ_CONDS, [])
+    conds = garantir_codigo_armario(conds)
+    return conds
 
 @app.get("/api/condominios/public")
 def conds_public():
     conds = load_json(ARQ_CONDS, [])
+    conds = garantir_codigo_armario(conds)
     return [{"id": c["id"], "nome": c["nome"]} for c in conds if str(c["id"])!="1"]
 
 @app.get("/api/condominios/{cond_id}")
 def get_cond(cond_id: str, token: str = Depends(requer_auth)):
     conds = load_json(ARQ_CONDS, []); mors = load_json(ARQ_MORS, [])
+    conds = garantir_codigo_armario(conds)
     if str(cond_id) == "1":
         total_boxes = 16
         try:
@@ -245,29 +281,23 @@ def get_cond(cond_id: str, token: str = Depends(requer_auth)):
             return c
     raise HTTPException(404, "Condomínio não encontrado")
 
-# ====== CORRIGIDO - FALHA PROTOCOLO - NAO ALTERA ROTA ======
 @app.post("/api/tablet/entrega")
 async def tablet_entrega(payload: dict, request: Request = None):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     box_escolhido = payload.get("box") or get_box_livre(dados)
-
     existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
     existentes_qr = set(str(x.get("qr_code","")) for x in dados.get("lista",[]))
-
     codigo_morador = ""
     for _ in range(20):
         codigo_morador = f"{secrets.randbelow(900000)+100000:06d}"
         if codigo_morador not in existentes_cod:
             break
-
     qr_morador = ""
     for _ in range(20):
         qr_morador = f"SC-RET-{secrets.token_hex(6).upper()}"
         if qr_morador not in existentes_qr:
             break
-
     protocolo_entregador = payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}"
-
     nova = {
         "box": str(box_escolhido).zfill(2),
         "bloco": payload.get("bloco",""),
@@ -294,10 +324,8 @@ async def tablet_retirada(payload: dict, request: Request = None):
     codigo = str(payload.get("codigo","")).strip()
     if not codigo:
         raise HTTPException(status_code=400, detail="Código obrigatório")
-
     if codigo.startswith("SC-") and not codigo.startswith("SC-RET-"):
         raise HTTPException(status_code=403, detail="Protocolo de entregador não abre box. Use código do morador.")
-
     achado = None
     nova_lista = []
     for item in dados.get("lista",[]):
@@ -305,10 +333,8 @@ async def tablet_retirada(payload: dict, request: Request = None):
             achado=item
         else:
             nova_lista.append(item)
-
     if not achado:
         raise HTTPException(status_code=404, detail="Código não encontrado ou já utilizado")
-
     achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y")
     achado["hora_retirada"] = datetime.now().strftime("%H:%M")
     achado["qr_valido"] = False
@@ -317,14 +343,14 @@ async def tablet_retirada(payload: dict, request: Request = None):
     save_json(ARQ_DADOS, dados)
     registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado['box']} Cod morador usado", request=request)
     return {"ok": True, "box": achado["box"]}
-# ====== FIM CORRECAO FALHA ======
 
 @app.post("/api/condominios")
 def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth)):
     conds = load_json(ARQ_CONDS, [])
-    novo = {"id": str(uuid.uuid4())[:8],"nome": payload.get("nome"),"total_boxes": payload.get("total_boxes",16),"status":"ativo","criado_em": datetime.now().isoformat()}
+    codigo_armario = payload.get("codigo_armario") or payload.get("armario_numero") or gerar_codigo_armario()
+    novo = {"id": str(uuid.uuid4())[:8],"nome": payload.get("nome"),"total_boxes": payload.get("total_boxes",16),"codigo_armario": codigo_armario,"armario_numero": codigo_armario,"armario_id": codigo_armario,"status":"ativo","criado_em": datetime.now().isoformat()}
     conds.append(novo); save_json(ARQ_CONDS, conds)
-    registrar_auditoria("CRIOU_CONDOMINIO", detalhes=novo["nome"], condominio_id=novo["id"], request=request)
+    registrar_auditoria("CRIOU_CONDOMINIO", detalhes=f"{novo['nome']} - {codigo_armario}", condominio_id=novo["id"], request=request)
     return novo
 
 @app.put("/api/condominios/{cond_id}")
@@ -332,16 +358,50 @@ def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: 
     conds = load_json(ARQ_CONDS, [])
     for c in conds:
         if str(c["id"])==str(cond_id):
-            for k in payload: c[k]=payload[k]
+            for k in payload:
+                if k in ["codigo_armario","armario_numero","armario_id"] and not payload[k]: continue
+                c[k]=payload[k]
+            if not c.get("codigo_armario"):
+                c["codigo_armario"] = c.get("armario_numero") or gerar_codigo_armario()
+                c["armario_numero"] = c["codigo_armario"]
+                c["armario_id"] = c["codigo_armario"]
             c["atualizado_em"]=datetime.now().isoformat()
             save_json(ARQ_CONDS, conds)
             return c
     raise HTTPException(404)
 
 @app.delete("/api/condominios")
-def deletar_cond(id: str = Query(...), request: Request = None, token: str = Depends(requer_auth)):
-    conds = load_json(ARQ_CONDS, []); conds=[c for c in conds if str(c["id"])!=str(id)]
-    save_json(ARQ_CONDS, conds); return {"ok":True}
+def deletar_cond(id: str = Query(...), senha_admin: str = Query(None), request: Request = None, token: str = Depends(requer_auth)):
+    if senha_admin:
+        if not validar_senha_admin(senha_admin):
+            raise HTTPException(status_code=401, detail="Senha de admin incorreta")
+    conds = load_json(ARQ_CONDS, [])
+    cond_alvo = next((c for c in conds if str(c["id"])==str(id)), None)
+    conds=[c for c in conds if str(c["id"])!=str(id)]
+    save_json(ARQ_CONDS, conds)
+    if cond_alvo:
+        registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido {cond_alvo.get('nome')}", condominio_id=id, request=request)
+    return {"ok":True}
+
+def validar_senha_admin(senha_fornecida: str) -> bool:
+    if not senha_fornecida: return False
+    if senha_fornecida == ADMIN_PASS: return True
+    if verificar_senha(ADMIN_PASS, senha_fornecida): return True
+    return False
+
+@app.post("/api/condominios/{cond_id}/excluir")
+def excluir_cond_com_senha(cond_id: str, payload: dict, request: Request, token: str = Depends(requer_auth)):
+    senha = payload.get("senha") or payload.get("senha_admin") or payload.get("password") or ""
+    if not validar_senha_admin(senha):
+        raise HTTPException(status_code=401, detail="Senha de admin incorreta. Exclusão não autorizada.")
+    conds = load_json(ARQ_CONDS, [])
+    cond_alvo = next((c for c in conds if str(c["id"])==str(cond_id)), None)
+    if not cond_alvo:
+        raise HTTPException(404, "Condomínio não encontrado")
+    conds = [c for c in conds if str(c["id"])!=str(cond_id)]
+    save_json(ARQ_CONDS, conds)
+    registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido {cond_alvo.get('nome')} {cond_alvo.get('codigo_armario','')} com senha admin", condominio_id=cond_id, request=request)
+    return {"ok": True, "msg": f"Condomínio {cond_alvo.get('nome')} excluído"}
 
 @app.get("/api/moradores")
 def listar_mors(condominio: str = Query("1"), token: str = Depends(requer_auth)):
@@ -387,7 +447,6 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
         historico=[x for x in hist_all if str(x.get("condominio_id"))==str(condominio)]
     total_boxes = raw.get("total_boxes",16)
     ocupados=len(lista); livres=max(0,int(total_boxes)-ocupados)
-    # calcula vencidas >72h sem quebrar rota
     vencidas_lista = []
     agora = datetime.now()
     for item in lista:
@@ -442,14 +501,12 @@ async def api_entregas_compat(payload: dict, request: Request = None, token: str
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     box_req = payload.get("box","")
     if not box_req or box_req=="07" or box_req=="7": box_req=get_box_livre(dados)
-
     existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
     codigo_morador = ""
     for _ in range(20):
         codigo_morador = f"{secrets.randbelow(900000)+100000:06d}"
         if codigo_morador not in existentes_cod:
             break
-
     nova = {
         "box": str(box_req).zfill(2),
         "bloco": payload.get("bloco",""),
@@ -472,10 +529,8 @@ async def api_entregas_compat(payload: dict, request: Request = None, token: str
 async def api_retiradas_compat(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     codigo = str(payload.get("protocolo") or payload.get("codigo") or "").strip()
-
     if codigo.startswith("SC-") and not codigo.startswith("SC-RET-"):
         raise HTTPException(status_code=403, detail="Protocolo não abre box")
-
     achado=None; nova_lista=[]
     for item in dados.get("lista",[]):
         if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
@@ -566,7 +621,6 @@ def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcio
     _set_cache_ia("lotacao_"+condominio, resultado)
     return resultado
 
-# ===== NOVO - ABERTURA REMOTA - MANTIDO IGUAL =====
 @app.post("/api/admin/abrir-box/{box_id}")
 def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_auth)):
     box_id = str(box_id).zfill(2)
@@ -589,7 +643,6 @@ def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_
         dados["historico"].append(achado)
         save_json(ARQ_DADOS, dados)
     return {"ok": True, "box": box_id, "msg": f"Comando de abertura enviado para Box {box_id}"}
-# ===== FIM NOVO =====
 
 if __name__ == "__main__":
     import uvicorn
