@@ -36,6 +36,8 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 .step.active{display:block;animation:fadeUp .3s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .status-box{background:linear-gradient(135deg,#E8F5E9,#E0F2E1);border:1px solid #c8e6c9;border-radius:12px;padding:10px;text-align:center;margin:10px 0}
+.status-box.err{background:linear-gradient(135deg,#FCE8E6,#F8D7DA);border-color:#f5c6cb}
+.status-box.err b{color:#c62828}
 .status-box b{color:#2e7d32;font-size:11px;line-height:1.3}
 .receipt{background:#fcfcfc;border:1.5px dashed #e4e4e7;border-radius:16px;padding:10px 14px;margin:10px 0}
 .receipt-title{font-size:9px;font-weight:900;letter-spacing:1.5px;color:#9a9aa0;text-align:center;margin-bottom:6px}
@@ -44,6 +46,7 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 .row span:first-child{color:#8a8a9a;font-weight:600}
 .row span:last-child{font-weight:800;color:#111}
 .hint{margin-top:8px;text-align:center;font-size:10px;color:#a0a0a8;font-weight:600}
+.arm-info{text-align:center;font-size:10px;font-weight:800;color:#FF6A00;letter-spacing:.8px;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -53,6 +56,7 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="icon-circle">📦</div>
 <div class="h1">Para quem é a<br>encomenda?</div>
 <div class="sub">Informe o destino para liberar um box</div>
+<div class="arm-info" id="armInfo"></div>
 <div class="field"><span>🏢</span><input id="bloco" placeholder="BLOCO  •  Ex: B" maxlength="4"></div>
 <div class="field"><span>🏠</span><input id="apto" placeholder="APTO  •  Ex: 303"></div>
 <button class="btn-primary" onclick="irTamanho()">CONTINUAR →</button>
@@ -69,8 +73,9 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="size" onclick="sel('M',this)"><b>M</b><small>MÉDIO</small></div>
 <div class="size" onclick="sel('G',this)"><b>G</b><small>GRANDE</small></div>
 </div>
+<div class="status-box err" id="semEspacoBox" style="display:none"><b id="semEspacoTxt">SEM ESPAÇO</b></div>
 <button class="btn-primary" id="btnConf" disabled onclick="confirmar()">ABRIR BOX →</button>
-<button class="btn-sec" onclick="location.href='/tablet'">VOLTAR AO INÍCIO</button>
+<button class="btn-sec" onclick="voltarDest()">VOLTAR</button>
 </div>
 <div class="card step" id="s3">
 <div class="progress"><div class="dot"></div><div class="dot"></div><div class="dot active"></div></div>
@@ -95,77 +100,91 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 </div>
 <script>
 const condId = localStorage.getItem('condominio_selecionado') || '1';
-let condNomeCache = 'Residencial';
-async function carregarCondominio(){
- try{
-   let r = await fetch('/api/condominios/'+condId);
-   if(r.ok){
-     let c = await r.json();
-     condNomeCache = c.nome || 'Residencial';
-     document.getElementById('condominioNome').innerText = condNomeCache;
-   }
- }catch(e){}
-}
-carregarCondominio();
-let tam='P';
+const condNomeLS = localStorage.getItem('condominio_nome') || 'Residencial';
+const condArmLS = localStorage.getItem('condominio_arm') || '';
+document.getElementById('armInfo').innerText = condArmLS ? condArmLS + ' • ' + condNomeLS : condNomeLS;
+document.getElementById('condominioNome').innerText = condNomeLS;
+
+let tam='';
+
 function irTamanho(){
   let b=document.getElementById('bloco').value.trim();
   let a=document.getElementById('apto').value.trim();
   if(!b||!a){alert('Digite bloco e apto');return}
+  if(condId==='1'){ alert('Tablet não travado! Segure o logo no menu e selecione o condomínio.'); location.href='/tablet'; return; }
   document.getElementById('destTxt').innerText=`Bloco ${b.toUpperCase()} • Apto ${a}`;
   document.getElementById('bTxt').innerText=b.toUpperCase();
   document.getElementById('aTxt').innerText=a;
   document.getElementById('s1').classList.remove('active');
   document.getElementById('s2').classList.add('active');
 }
+function voltarDest(){
+  document.getElementById('s2').classList.remove('active');
+  document.getElementById('s1').classList.add('active');
+}
 function sel(t,el){
   tam=t;
   document.querySelectorAll('.size').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('btnConf').disabled=false;
+  document.getElementById('semEspacoBox').style.display='none';
   document.getElementById('tTxt').innerText=t;
 }
+
 async function confirmar(){
-  let p='SC-'+Math.floor(100000+Math.random()*900000);
-  let n=new Date();
+  let btn = document.getElementById('btnConf');
+  btn.disabled = true;
+  btn.innerText = 'ABRINDO...';
+
   let bloco=document.getElementById('bloco').value.trim().toUpperCase();
   let apto=document.getElementById('apto').value.trim();
+  let n=new Date();
   let dataStr=n.toLocaleDateString('pt-BR');
   let horaStr=n.toLocaleTimeString('pt-BR').slice(0,5);
+  let p='SC-'+Math.floor(100000+Math.random()*900000);
+  
   document.getElementById('protocolo').innerText=p;
   document.getElementById('dataTxt').innerText=dataStr;
   document.getElementById('horaTxt').innerText=horaStr;
 
-  // ENVIA SEM BOX FIXO - BACKEND ESCOLHE O LIVRE (NOVO MAIN.PY)
-  let boxReal = '07';
   try{
-    let resp = await fetch('/api/entregas',{
+    let resp = await fetch('/api/tablet/entrega',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        protocolo:p,
-        condominio_id:condId,
-        condominio_nome:condNomeCache,
-        bloco:bloco,
-        apartamento:apto,
-        tamanho:tam,
-        data_hora:n.toISOString(),
-        data:dataStr,
-        hora:horaStr,
-        status:'ENTREGUE NO BOX'
+        condominio_id: condId,
+        bloco: bloco,
+        apartamento: apto,
+        tamanho: tam
       })
     });
-    if(resp.ok){
-      let d = await resp.json();
-      if(d.box) boxReal = d.box;
+    let d = await resp.json();
+    
+    if(!resp.ok){
+      // TRATA SEM ESPAÇO P/M/G
+      if(d.erro && d.erro.startsWith('SEM_ESPACO')){
+        let tipo = d.tamanho || tam;
+        document.getElementById('semEspacoBox').style.display='block';
+        document.getElementById('semEspacoTxt').innerText = `🔴 SEM ESPAÇO PARA ${tipo} - Todas as portas ${tipo} estão ocupadas. Tente contato com o síndico.`;
+        btn.disabled = false;
+        btn.innerText = 'ABRIR BOX →';
+        return;
+      } else {
+        throw new Error(d.detail || 'Erro ao abrir box');
+      }
     }
-  }catch(err){ console.log('Erro backend:', err); }
 
-  document.getElementById('boxRecibo').innerText = boxReal;
-  document.getElementById('boxStatus').innerHTML = `🔓 BOX ${boxReal} ABERTO - COLOQUE A ENCOMENDA<br>E FECHE A PORTA`;
+    let boxReal = d.box || '07';
+    document.getElementById('boxRecibo').innerText = boxReal;
+    document.getElementById('boxStatus').innerHTML = `🔓 BOX ${boxReal} ABERTO (${tam}) - COLOQUE A ENCOMENDA<br>E FECHE A PORTA`;
+    document.getElementById('s2').classList.remove('active');
+    document.getElementById('s3').classList.add('active');
 
-  document.getElementById('s2').classList.remove('active');
-  document.getElementById('s3').classList.add('active');
+  }catch(err){
+    alert('Erro: '+err.message);
+    btn.disabled = false;
+    btn.innerText = 'ABRIR BOX →';
+  }
 }
 </script>
 </body>
