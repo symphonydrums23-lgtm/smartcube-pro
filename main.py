@@ -39,14 +39,13 @@ if not os.path.exists(TEMPLATES_DIR) and os.path.exists(ALT_TEMPLATES):
 
 FILE_LOCK = threading.Lock()
 
-# ====== NOVO: CONFIG ARMARIOS ======
 BOX_TABLET_RESERVADO = "03"
-BOXES_TABLET_RESERVADOS = {"03", "3", "03F", "03V", "03_F", "03_V", "03-F", "03-V"} # frente e verso dupla face
+BOXES_TABLET_RESERVADOS = {"03", "3", "03F", "03V", "03_F", "03_V", "03-F", "03-V"}
 MODELOS_PRESET = {
     "1_BOX": {"label": "1 Box (Kit)", "fisico": 2, "util": 1, "P": 1, "M": 0, "G": 0, "G_boxes": []},
     "8_BOXES": {"label": "8 Boxes", "fisico": 9, "util": 8, "P": 5, "M": 2, "G": 1, "G_boxes": ["08"]},
     "16_BOXES": {"label": "16 Boxes", "fisico": 17, "util": 16, "P": 10, "M": 4, "G": 2, "G_boxes": ["09","16"]},
-    "18_BOXES": {"label": "18 Boxes (Foto)", "fisico": 19, "util": 18, "P": 11, "M": 5, "G": 2, "G_boxes": ["09","18"]}, # igual seu print
+    "18_BOXES": {"label": "18 Boxes (Foto)", "fisico": 19, "util": 18, "P": 11, "M": 5, "G": 2, "G_boxes": ["09","18"]},
     "24_BOXES": {"label": "24 Boxes", "fisico": 25, "util": 24, "P": 14, "M": 7, "G": 3, "G_boxes": ["09","18","24"]},
     "32_BOXES": {"label": "32 Boxes", "fisico": 33, "util": 32, "P": 20, "M": 8, "G": 4, "G_boxes": ["09","18","24","32"]},
 }
@@ -218,18 +217,15 @@ async def dashboard_page(request: Request):
     try: return templates.TemplateResponse("dashboard.html", {"request": request})
     except: return no_cache_html(get_path("dashboard.html"))
 
-# ====== NOVO: GERADOR DE BOXES COM P/M/G + BOX 03 TABLET ======
 def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None):
-    # Cria lista de boxes úteis excluindo 03
     todos_numeros = []
     i=1
-    while len(todos_numeros) < total_util + 1: # +1 pra compensar 03
+    while len(todos_numeros) < total_util + 1:
         s = f"{i:02d}"
         if s not in BOXES_TABLET_RESERVADOS:
             todos_numeros.append(s)
         i+=1
         if i>100: break
-    # Se informou quais são G, usa eles
     if g_boxes_custom:
         g_list = [b.zfill(2) for b in g_boxes_custom if b.zfill(2) in todos_numeros][:qtd_g]
     else:
@@ -238,7 +234,6 @@ def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None):
     if qtd_g>0 and qtd_m>0:
         p_list = todos_numeros[:qtd_p]
     else:
-        # fallback simples
         usados = set(g_list+m_list)
         p_list = [b for b in todos_numeros if b not in usados][:qtd_p]
     boxes = []
@@ -247,7 +242,6 @@ def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None):
         elif b in m_list: tam="M"
         else: tam="P"
         boxes.append({"numero": b, "tamanho": tam})
-    # Garante quantidades exatas
     return boxes[:total_util]
 
 def get_cond_config(cond_id):
@@ -258,7 +252,6 @@ def get_cond_config(cond_id):
     return None
 
 def get_box_livre(dados, condominio_id="1", tamanho="P", cond_config=None):
-    # Filtra apenas do condomínio
     lista_filtrada = [x for x in dados.get("lista", []) if str(x.get("condominio_id"))==str(condominio_id)] if str(condominio_id)!="1" else dados.get("lista", [])
     ocupados = set()
     for x in lista_filtrada:
@@ -272,38 +265,30 @@ def get_box_livre(dados, condominio_id="1", tamanho="P", cond_config=None):
             except:
                 ocupados.add(b)
         except: pass
-    # Pega config de boxes
     boxes_lista = []
     if cond_config and cond_config.get("boxes_lista"):
         boxes_lista = cond_config["boxes_lista"]
     else:
-        # fallback antigo: total_boxes
         total = int(cond_config.get("total_util", cond_config.get("total_boxes", 16))) if cond_config else int(dados.get("total_boxes",16))
         qtd_p = int(cond_config.get("qtd_p", cond_config.get("boxes_config",{}).get("P", total-3))) if cond_config else total
         qtd_m = int(cond_config.get("qtd_m", 0)) if cond_config else 0
         qtd_g = int(cond_config.get("qtd_g", 0)) if cond_config else 0
         boxes_lista = gerar_boxes_lista(total, qtd_p, qtd_m, qtd_g, cond_config.get("G_boxes") if cond_config else None)
-    
-    # Cria mapa tamanho -> boxes
     mapa = {"P": [], "M": [], "G": []}
     for bx in boxes_lista:
         num = bx["numero"]
         if num in BOXES_TABLET_RESERVADOS: continue
         mapa[bx["tamanho"]].append(num)
-    
-    # Lógica overflow P->M->G, M->G, G só G
     ordem = []
     tamanho = (tamanho or "P").upper()
     if tamanho=="P": ordem=["P","M","G"]
     elif tamanho=="M": ordem=["M","G"]
     else: ordem=["G"]
-    
     for t in ordem:
         for box_num in mapa.get(t, []):
             if str(box_num) not in ocupados and f"{int(box_num):02d}" not in ocupados and box_num not in ocupados:
-                # verifica se não é tablet
                 if box_num in BOXES_TABLET_RESERVADOS: continue
-                return box_num, t if t!=tamanho else tamanho, t!=tamanho # box, tamanho solicitado, foi upgrade?
+                return box_num, t if t!=tamanho else tamanho, t!=tamanho
     return None, tamanho, False
 
 def gerar_codigo_armario(existentes=None):
@@ -342,7 +327,6 @@ def garantir_codigo_armario(conds_list):
             if not c.get("codigo_armario"): c["codigo_armario"] = codigo_atual
             if not c.get("armario_numero"): c["armario_numero"] = codigo_atual
             if not c.get("armario_id"): c["armario_id"] = codigo_atual
-        # Garante campos novos
         if "qtd_p" not in c: c["qtd_p"] = c.get("total_boxes",16) -2
         if "qtd_m" not in c: c["qtd_m"] = 1
         if "qtd_g" not in c: c["qtd_g"] = 1
@@ -394,10 +378,8 @@ async def tablet_entrega(payload: dict, request: Request = None):
     if condominio_id=="1":
         raise HTTPException(status_code=400, detail="Tablet não travado. Configure o condomínio no tablet.")
     box_escolhido, tamanho_final, foi_upgrade = None, tamanho_solicitado, False
-    # Tenta achar box livre com overflow
     box_escolhido, _, foi_upgrade = get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)
     if not box_escolhido:
-        # Sem espaço
         raise HTTPException(status_code=409, detail=f"SEM_ESPACO_{tamanho_solicitado}")
     existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
     existentes_qr = set(str(x.get("qr_code","")) for x in dados.get("lista",[]))
@@ -430,9 +412,7 @@ async def tablet_entrega(payload: dict, request: Request = None):
         "upgrade": foi_upgrade,
         "qr_valido": True
     }
-    # Ajuste tamanho real
     if foi_upgrade:
-        # descobre tamanho real do box escolhido
         for bx in (cond_config.get("boxes_lista",[]) if cond_config else []):
             if bx["numero"]==box_escolhido:
                 nova["tamanho_real"]=bx["tamanho"]
@@ -483,7 +463,6 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
     qtd_m = int(payload.get("qtd_m", payload.get("M", preset["M"])))
     qtd_g = int(payload.get("qtd_g", payload.get("G", preset["G"])))
     dupla_face = bool(payload.get("dupla_face", False))
-    # Total físico inclui tablet
     total_fisico_base = int(payload.get("total_fisico", preset["fisico"]))
     total_util = qtd_p+qtd_m+qtd_g
     if dupla_face:
@@ -494,8 +473,7 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
     G_boxes = payload.get("G_boxes", preset["G_boxes"])
     boxes_lista = gerar_boxes_lista(total_util if not dupla_face else total_util//2, qtd_p if not dupla_face else qtd_p//2, qtd_m if not dupla_face else qtd_m//2, qtd_g if not dupla_face else qtd_g//2, G_boxes)
     if dupla_face:
-        # Duplica para frente e verso
-        boxes_lista = boxes_lista + [{"numero": b["numero"]+"V", "tamanho": b["tamanho"]} for b in boxes_lista] # simplificado
+        boxes_lista = boxes_lista + [{"numero": b["numero"]+"V", "tamanho": b["tamanho"]} for b in boxes_lista]
     novo = {
         "id": str(uuid.uuid4())[:8],
         "nome": nome,
@@ -533,7 +511,6 @@ def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: 
                 c["codigo_armario"] = c.get("armario_numero") or gerar_codigo_armario()
                 c["armario_numero"] = c["codigo_armario"]
                 c["armario_id"] = c["codigo_armario"]
-            # Recalcula se mudou P/M/G
             if any(k in payload for k in ["qtd_p","qtd_m","qtd_g","modelo","dupla_face"]):
                 modelo = c.get("modelo","18_BOXES")
                 preset = MODELOS_PRESET.get(modelo, MODELOS_PRESET["18_BOXES"])
@@ -632,8 +609,9 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
         lista=lista_all; historico=hist_all
         total_boxes = raw.get("total_boxes",16)
         try:
-            soma = sum(int(c.get("total_util", c.get("total_boxes",0))) for c in conds if str(c.get("id"))!="1"
-            if soma>0: total_boxes=soma
+            soma = sum(int(c.get("total_util", c.get("total_boxes",0))) for c in conds if str(c.get("id"))!="1")
+            if soma>0:
+                total_boxes=soma
         except: pass
     else: 
         lista=[x for x in lista_all if str(x.get("condominio_id"))==str(condominio)]
