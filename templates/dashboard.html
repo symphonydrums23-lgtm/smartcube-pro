@@ -313,8 +313,7 @@ function gerarCSV(){if(!DADOS_FILTRADOS.length)return;let csv='Protocolo,Bloco,A
 function gerarPDF(){if(!DADOS_FILTRADOS.length)return;const {jsPDF}=window.jspdf;let doc=new jsPDF();doc.text(document.getElementById('modalTitulo').innerText,10,10);doc.autoTable({head:[['Protocolo','Bloco/Apto','Box','Data']],body:DADOS_FILTRADOS.map(i=>[i.protocolo||i.codigo,`${i.bloco||''} ${i.apartamento||''}`,i.box,i.data||'']),startY:20});doc.save('relatorio.pdf');}
 function aplicarFiltroData(){}
 function limparFiltro(){document.getElementById('dataDe').value='';document.getElementById('dataAte').value='';}
-async function carregarConds(){try{let r=await fetchAuth(API_BASE+'/api/condominios');let conds=await r.json();let div=document.getElementById('listaC');if(div)div.innerHTML=conds.filter(c=>String(c.id)!='1').map(c=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><b>${c.nome}</b><div style="font-size:10px;color:#888">${c.armario_num||''} - ${c.total_boxes||16} boxes</div></div><button class="btn btn-o" onclick="abrirCond('${c.id}')">Abrir</button></div>`).join('');}catch(e){}}
-async function abrirCond(id){COND_ID=id;try{let r=await fetchAuth(API_BASE+'/api/condominios/'+id);let c=await r.json();document.getElementById('dNome').innerText=c.nome;document.getElementById('cArm').value=c.armario_num||'';document.getElementById('cEnd').value=c.endereco||'';document.getElementById('cValorMensal').value=c.valor_mensal||'';document.getElementById('cValorInst').value=c.valor_instalacao||'';document.getElementById('cAtivo').value=c.status||'ativo';document.getElementById('cVenc').value=c.vencimento||'';document.getElementById('cDataInicio').value=c.data_inicio||'';document.getElementById('cPeriodo').value=c.periodo||'12 meses';show('detail');carregarMoradores(id);}catch(e){}}
+async function carregarConds(){try{let r=await fetchAuth(API_BASE+'/api/condominios');let conds=await r.json();let div=document.getElementById('listaC');if(div)div.innerHTML=conds.filter(c=>String(c.id)!='1').map(c=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><b>${c.armario_num||'SEM-ARM'} - ${c.nome}</b><div style="font-size:10px;color:#888">${c.armario_num||'Sem número'} • ${c.total_boxes||16} boxes</div></div><div style="display:flex;gap:6px"><button class="btn btn-o" onclick="abrirCond('${c.id}')">Abrir</button><button class="btn" style="background:#DC2626;color:#fff" onclick="excluirCondModal('${c.id}','${c.nome}')">🗑️</button></div></div>`).join('');}catch(e){}}async function abrirCond(id){COND_ID=id;try{let r=await fetchAuth(API_BASE+'/api/condominios/'+id);let c=await r.json();document.getElementById('dNome').innerText=c.nome;document.getElementById('cArm').value=c.armario_num||'';document.getElementById('cEnd').value=c.endereco||'';document.getElementById('cValorMensal').value=c.valor_mensal||'';document.getElementById('cValorInst').value=c.valor_instalacao||'';document.getElementById('cAtivo').value=c.status||'ativo';document.getElementById('cVenc').value=c.vencimento||'';document.getElementById('cDataInicio').value=c.data_inicio||'';document.getElementById('cPeriodo').value=c.periodo||'12 meses';show('detail');carregarMoradores(id);}catch(e){}}
 async function carregarMoradores(id){try{let r=await fetchAuth(API_BASE+'/api/moradores?condominio='+id);let mors=await r.json();document.getElementById('qtdMor').innerText=`Moradores (${mors.length})`;document.getElementById('listaM').innerHTML=mors.map(m=>`<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee;font-size:11px"><span><b>${m.nome}</b> - Bl ${m.bloco} Ap ${m.apto||m.apartamento}</span><button class="btn btn-g" style="padding:4px 8px" onclick="delMor('${m.id}')">X</button></div>`).join('');}catch(e){}}
 async function delMor(id){if(!confirm('Excluir?'))return;try{await fetchAuth(API_BASE+'/api/moradores?id='+id,{method:'DELETE'});carregarMoradores(COND_ID);}catch(e){}}
 function addMor(){let nome=prompt('Nome:');if(!nome)return;let bloco=prompt('Bloco:')||'';let apto=prompt('Apto:')||'';fetchAuth(API_BASE+'/api/moradores',{method:'POST',headers:authHeadersJson(),body:JSON.stringify({nome,bloco,apto,condominio:COND_ID})}).then(()=>carregarMoradores(COND_ID));}
@@ -363,6 +362,29 @@ function carregarOperadores(){
   if(sel){ sel.innerHTML='<option value="">Sem operador (Matriz)</option>'+OPERADORES_CACHE.map(o=>`<option value="${o.id}">${o.nome}</option>`).join(''); }
 }
 function delOperador(id){ if(!confirm('Excluir?')) return; OPERADORES_CACHE=OPERADORES_CACHE.filter(o=>o.id!=id); localStorage.setItem('sc_operadores', JSON.stringify(OPERADORES_CACHE)); carregarOperadores(); }
+
+let EX_ID=null;
+function excluirCondModal(id,nome){
+  EX_ID=id;
+  document.getElementById('exNome').innerText=nome;
+  document.getElementById('exSenha').value='';
+  document.getElementById('modalExcluirCond').style.display='flex';
+}
+function fecharExcluirCond(){
+  document.getElementById('modalExcluirCond').style.display='none';
+  EX_ID=null;
+}
+async function confirmarExcluirCond(){
+  let s=document.getElementById('exSenha').value;
+  if(!s){alert('Digite a senha');return;}
+  try{
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+EX_ID+'/excluir',{method:'POST',headers:authHeadersJson(),body:JSON.stringify({senha:s})});
+    let d=await r.json();
+    if(r.ok){alert('✅ Excluído');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+    else alert('❌ '+(d.detail||'Senha errada'));
+  }catch(e){alert('Erro:'+e.message)}
+}
+
 async function salvarContrato(){
   let payload={armario_num:document.getElementById('cArm').value,endereco:document.getElementById('cEnd').value,valor_mensal:document.getElementById('cValorMensal').value,valor_instalacao:document.getElementById('cValorInst').value,status:document.getElementById('cAtivo').value,vencimento:document.getElementById('cVenc').value,data_inicio:document.getElementById('cDataInicio').value,periodo:document.getElementById('cPeriodo').value,operador:document.getElementById('cOperador').value};
   try{ let r=await fetchAuth(API_BASE+'/api/condominios/'+COND_ID,{method:'PUT',headers:authHeadersJson(),body:JSON.stringify(payload)}); if(r.ok){ alert('Contrato salvo!'); carregarConds(); } else alert('Erro'); }catch(e){ alert('Erro: '+e.message); }
@@ -375,5 +397,6 @@ carregarDados();
 checkTokenValido();
 carregarOperadores();
 </script>
+  <div id="modalExcluirCond" class="modal"><div class="modal-box" style="max-width:400px"><div class="modal-head"><b>🗑️ Excluir Condomínio</b><button class="btn btn-b" onclick="fecharExcluirCond()">✕</button></div><div style="padding:18px"><div style="background:#FEF2F2;border:1px solid #FECACA;padding:10px;border-radius:8px;font-size:11px;color:#991B1B">⚠️ Vai excluir <b id="exNome">--</b> e todos moradores! Não volta mais.</div><div style="margin-top:12px"><span class="label">Digite a senha ADMIN</span><input id="exSenha" type="password" class="input" placeholder="Senha admin"></div><button class="btn" style="background:#DC2626;color:#fff;width:100%;margin-top:12px;padding:10px" onclick="confirmarExcluirCond()">Confirmar Exclusão</button></div></div></div>
 </body>
 </html>
