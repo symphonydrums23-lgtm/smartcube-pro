@@ -81,7 +81,6 @@ def hash_senha(senha: str) -> str:
 def verificar_senha(stored: str, provided: str) -> bool:
     try:
         if not stored or not provided: return False
-        if len(stored) < 64 and stored == provided: return True
         b = binascii.unhexlify(stored.encode('ascii'))
         salt = b[:16]
         stored_hash = b[16:]
@@ -212,7 +211,14 @@ def get_box_livre(dados):
     for x in dados.get("lista", []):
         try:
             b = str(x.get("box","")).strip()
-            ocupados.add(b); ocupados.add(b.lstrip("0")); ocupados.add(b.zfill(2))
+            if not b: continue
+            # FIX: usa int pra normalizar, evita lstrip("0") -> ""
+            try:
+                num = int(b)
+                ocupados.add(str(num))
+                ocupados.add(f"{num:02d}")
+            except:
+                ocupados.add(b)
         except: pass
     total = int(dados.get("total_boxes",16))
     for i in range(1, total+1):
@@ -220,29 +226,39 @@ def get_box_livre(dados):
             return f"{i:02d}"
     return f"{total:02d}"
 
-# ====== CORRECAO 01 - NUMERO ARMARIO AUTO ======
-def gerar_codigo_armario():
-    conds = load_json(ARQ_CONDS, [])
-    existentes = set()
-    for c in conds:
-        for key in ["codigo_armario", "armario_numero", "armario_id", "codigo"]:
-            v = c.get(key)
-            if v and str(v).startswith("ARM-"):
-                existentes.add(str(v))
+# ====== CORRECAO ARMARIO - SEM DUPLICIDADE ======
+def gerar_codigo_armario(existentes=None):
+    if existentes is None:
+        conds = load_json(ARQ_CONDS, [])
+        existentes = set()
+        for c in conds:
+            for key in ["codigo_armario", "armario_numero", "armario_id", "codigo"]:
+                v = c.get(key)
+                if v and str(v).startswith("ARM-"):
+                    existentes.add(str(v))
     for _ in range(100):
         novo = f"ARM-{random.randint(10000, 99999)}"
         if novo not in existentes:
+            existentes.add(novo)
             return novo
     return f"ARM-{random.randint(10000, 99999)}"
 
 def garantir_codigo_armario(conds_list):
+    # FIX: cria set único na memória pra não duplicar no mesmo lote
+    existentes = set()
+    for c in conds_list:
+        for key in ["codigo_armario", "armario_numero", "armario_id", "codigo"]:
+            v = c.get(key)
+            if v and str(v).startswith("ARM-"):
+                existentes.add(str(v))
     alterado = False
     for c in conds_list:
         codigo_atual = c.get("codigo_armario") or c.get("armario_numero") or c.get("armario_id") or ""
         if not codigo_atual or not str(codigo_atual).startswith("ARM-"):
-            c["codigo_armario"] = gerar_codigo_armario()
-            c["armario_numero"] = c["codigo_armario"]
-            c["armario_id"] = c["codigo_armario"]
+            novo = gerar_codigo_armario(existentes)
+            c["codigo_armario"] = novo
+            c["armario_numero"] = novo
+            c["armario_id"] = novo
             alterado = True
         else:
             if not c.get("codigo_armario"): c["codigo_armario"] = codigo_atual
@@ -346,9 +362,12 @@ async def tablet_retirada(payload: dict, request: Request = None):
 
 @app.post("/api/condominios")
 def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth)):
+    nome = str(payload.get("nome","")).strip()
+    if not nome:
+        raise HTTPException(status_code=400, detail="Nome do condomínio obrigatório")
     conds = load_json(ARQ_CONDS, [])
     codigo_armario = payload.get("codigo_armario") or payload.get("armario_numero") or gerar_codigo_armario()
-    novo = {"id": str(uuid.uuid4())[:8],"nome": payload.get("nome"),"total_boxes": payload.get("total_boxes",16),"codigo_armario": codigo_armario,"armario_numero": codigo_armario,"armario_id": codigo_armario,"status":"ativo","criado_em": datetime.now().isoformat()}
+    novo = {"id": str(uuid.uuid4())[:8],"nome": nome,"total_boxes": int(payload.get("total_boxes",16)),"codigo_armario": codigo_armario,"armario_numero": codigo_armario,"armario_id": codigo_armario,"status":"ativo","criado_em": datetime.now().isoformat()}
     conds.append(novo); save_json(ARQ_CONDS, conds)
     registrar_auditoria("CRIOU_CONDOMINIO", detalhes=f"{novo['nome']} - {codigo_armario}", condominio_id=novo["id"], request=request)
     return novo
@@ -386,7 +405,9 @@ def deletar_cond(id: str = Query(...), senha_admin: str = Query(None), request: 
 def validar_senha_admin(senha_fornecida: str) -> bool:
     if not senha_fornecida: return False
     if senha_fornecida == ADMIN_PASS: return True
-    if verificar_senha(ADMIN_PASS, senha_fornecida): return True
+    try:
+        if verificar_senha(ADMIN_PASS, senha_fornecida): return True
+    except: pass
     return False
 
 @app.post("/api/condominios/{cond_id}/excluir")
@@ -411,8 +432,11 @@ def listar_mors(condominio: str = Query("1"), token: str = Depends(requer_auth))
 
 @app.post("/api/moradores")
 def criar_mor(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
+    nome = str(payload.get("nome","")).strip()
+    if not nome:
+        raise HTTPException(status_code=400, detail="Nome do morador obrigatório")
     mors = load_json(ARQ_MORS, [])
-    novo = {"id": str(uuid.uuid4())[:8],"nome": payload.get("nome"),"bloco": payload.get("bloco",""),"apto": payload.get("apto",""),"condominio": payload.get("condominio","1")}
+    novo = {"id": str(uuid.uuid4())[:8],"nome": nome,"bloco": payload.get("bloco",""),"apto": payload.get("apto",""),"condominio": payload.get("condominio","1")}
     mors.append(novo); save_json(ARQ_MORS, mors)
     return novo
 
@@ -439,13 +463,20 @@ async def import_csv(file: UploadFile = File(...), condominio: str = Form(...), 
 @app.get("/api/dashboard/dados")
 def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
     raw = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+    conds = load_json(ARQ_CONDS, [])
     lista_all = raw.get("lista", []); hist_all = raw.get("historico", [])
     if str(condominio) == "1": 
         lista=lista_all; historico=hist_all
+        total_boxes = raw.get("total_boxes",16)
+        try:
+            soma = sum(int(c.get("total_boxes",0)) for c in conds if str(c.get("id"))!="1")
+            if soma>0: total_boxes=soma
+        except: pass
     else: 
         lista=[x for x in lista_all if str(x.get("condominio_id"))==str(condominio)]
         historico=[x for x in hist_all if str(x.get("condominio_id"))==str(condominio)]
-    total_boxes = raw.get("total_boxes",16)
+        c_target = next((c for c in conds if str(c["id"])==str(condominio)), None)
+        total_boxes = int(c_target.get("total_boxes",16)) if c_target else int(raw.get("total_boxes",16))
     ocupados=len(lista); livres=max(0,int(total_boxes)-ocupados)
     vencidas_lista = []
     agora = datetime.now()
@@ -481,7 +512,7 @@ def auth_login(payload: dict, request: Request):
         save_tokens()
         registrar_auditoria("LOGIN_SUCESSO", usuario=usuario, request=request)
         resp = JSONResponse({"ok": True, "token": token, "expires_in": 28800})
-        resp.set_cookie(key="sc_token", value=token, httponly=False, max_age=28800, samesite="Lax", path="/")
+        resp.set_cookie(key="sc_token", value=token, httponly=True, max_age=28800, samesite="Lax", path="/")
         return resp
     LOGIN_TENTATIVAS[ip].append(time.time())
     raise HTTPException(401, "Usuário ou senha inválido")
@@ -500,7 +531,9 @@ def auth_verificar_post(token: str = Depends(requer_auth)):
 async def api_entregas_compat(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     box_req = payload.get("box","")
-    if not box_req or box_req=="07" or box_req=="7": box_req=get_box_livre(dados)
+    # FIX: removida regra mágica do box 07
+    if not box_req:
+        box_req=get_box_livre(dados)
     existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
     codigo_morador = ""
     for _ in range(20):
