@@ -8,7 +8,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif}
 body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;overflow:hidden}
-.logo-img{width:210px;height:auto;filter:drop-shadow(0 4px 20px rgba(255,106,0,.2))}
+.logo-img{width:210px;height:auto;filter:drop-shadow(0 4px 20px rgba(255,106,0,.2));user-select:none;-webkit-user-select:none;touch-action:none}
 .btn{width:92%;max-width:380px;height:120px;border-radius:20px;border:none;font-size:22px;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:.2s}
 .btn:active{transform:scale(.97)}
 .btn small{font-size:11px;opacity:.7;font-weight:700;letter-spacing:.5px}
@@ -16,34 +16,98 @@ body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:col
 .btn-receber{background:transparent;color:#FF6A00;border:2.5px solid #FF6A00;box-shadow:0 10px 30px rgba(255,106,0,.15)}
 .voltar{margin-top:12px;color:#444;font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;padding:10px 20px;border-radius:12px}
 .voltar:active{background:#111;color:#FF6A00}
+.arm-label{color:#FF6A00;font-size:10px;font-weight:800;letter-spacing:1.2px;margin-top:-8px;opacity:.8}
+#setupOverlay{position:fixed;inset:0;background:rgba(0,0,0,.95);display:none;align-items:center;justify-content:center;z-index:9999;padding:20px}
+#setupBox{width:100%;max-width:360px;background:#111;border:1px solid #222;border-radius:20px;padding:20px}
+#setupBox h2{color:#fff;font-size:16px;font-weight:900;text-align:center;margin-bottom:12px}
+#setupBox select,#setupBox button{width:100%;padding:14px;border-radius:12px;border:none;font-weight:800;font-size:14px;margin-top:10px}
+#setupBox select{background:#fff;color:#000}
+#setupBox button{background:#FF6A00;color:#fff;cursor:pointer}
+#setupBox small{color:#666;font-size:10px;display:block;text-align:center;margin-top:10px}
 </style>
 </head>
 <body>
-<img src="/logo.png" class="logo-img" alt="Smart Cube">
+<img src="/logo.png" class="logo-img" alt="Smart Cube" id="logo">
+<div class="arm-label" id="armLabel"></div>
 <button class="btn btn-entregar" onclick="location.href='/entrega'">📦 ENTREGAR<small>ENTREGADOR / PORTARIA</small></button>
 <button class="btn btn-receber" onclick="location.href='/retirada'">🔑 RECEBER<small>MORADOR</small></button>
-<div class="voltar" onclick="location.href='/'">VOLTAR AO INÍCIO</div>
+<div class="voltar" id="btnVoltar" onclick="location.href='/'">VOLTAR AO INÍCIO</div>
 
-<!-- IA PACK v5.5.1 - TABLET - SILENCIOSA - NAO ALTERA VISUAL -->
+<!-- SETUP OCULTO -->
+<div id="setupOverlay">
+  <div id="setupBox">
+    <h2>🔒 INSTALAÇÃO DO ARMÁRIO</h2>
+    <select id="selConds"><option>Carregando condomínios...</option></select>
+    <button onclick="travarArmario()">TRAVAR NESTE CONDOMÍNIO</button>
+    <button style="background:#222;color:#888;margin-top:8px" onclick="fecharSetup()">CANCELAR</button>
+    <small>Esta ação só precisa ser feita 1 vez.<br>Depois o tablet fica travado no ARM.</small>
+  </div>
+</div>
+
 <script>
+// MOSTRA ARM TRAVADO
+const travado = localStorage.getItem('condominio_travado') === 'true';
+const condId = localStorage.getItem('condominio_selecionado');
+const condNome = localStorage.getItem('condominio_nome');
+const condArm = localStorage.getItem('condominio_arm');
+if(travado && condId){
+  document.getElementById('armLabel').innerText = (condArm || 'ARM') + ' • ' + (condNome || '');
+  document.getElementById('btnVoltar').style.display = 'none';
+}
+
+// SETUP - SEGURA LOGO 5s
+let pressTimer;
+const logo = document.getElementById('logo');
+logo.addEventListener('touchstart', ()=>{ pressTimer = setTimeout(abrirSetup, 4000); });
+logo.addEventListener('touchend', ()=>{ clearTimeout(pressTimer); });
+logo.addEventListener('mousedown', ()=>{ pressTimer = setTimeout(abrirSetup, 4000); });
+logo.addEventListener('mouseup', ()=>{ clearTimeout(pressTimer); });
+
+async function abrirSetup(){
+  document.getElementById('setupOverlay').style.display='flex';
+  try{
+    let r = await fetch('/api/condominios');
+    if(r.ok){
+      let conds = await r.json();
+      let sel = document.getElementById('selConds');
+      sel.innerHTML = '';
+      conds.forEach(c=>{
+        if(c.id === '1') return; // pula Todos
+        let opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = (c.codigo_armario||'ARM')+' - '+c.nome;
+        opt.dataset.nome = c.nome;
+        opt.dataset.arm = c.codigo_armario;
+        sel.appendChild(opt);
+      });
+    }
+  }catch(e){}
+}
+function fecharSetup(){ document.getElementById('setupOverlay').style.display='none'; }
+function travarArmario(){
+  let sel = document.getElementById('selConds');
+  let opt = sel.options[sel.selectedIndex];
+  if(!opt) return;
+  localStorage.setItem('condominio_selecionado', opt.value);
+  localStorage.setItem('condominio_nome', opt.dataset.nome);
+  localStorage.setItem('condominio_arm', opt.dataset.arm);
+  localStorage.setItem('condominio_travado', 'true');
+  alert('Travado em: '+opt.textContent+'\nTablet reiniciando travado.');
+  location.reload();
+}
+
+// IA PACK v5.5.1 - SILENCIOSA
 async function iaTabletBackground(){
   try{
-    let condId = localStorage.getItem('condominio_selecionado') || '1';
-    // AGORA SEM 401 - main.py novo aceita sem token
-    let r = await fetch('/api/ia/lotacao-24h?condominio='+encodeURIComponent(condId));
+    let cId = localStorage.getItem('condominio_selecionado') || '1';
+    let r = await fetch('/api/ia/lotacao-24h?condominio='+encodeURIComponent(cId));
     if(!r.ok) return;
     let d = await r.json();
-    console.log('[IA Tablet Silenciosa] Cond:', condId, 'Previsao:', d.previsao_percent+'% | Atrasadas:', d.total_atrasados);
-    if(d.total_atrasados > 0){
-      localStorage.setItem('sc_ia_tablet_alerta', JSON.stringify({hora: new Date().toISOString(), condominio: condId, atrasadas: d.total_atrasados, previsao: d.previsao_percent}));
-    }
-  }catch(e){
-    console.log('[IA Tablet] Aguardando main.py v5.5');
-  }
+    console.log('[IA Tablet] Cond:', cId, 'Previsao:', d.previsao_percent+'%');
+  }catch(e){}
 }
 iaTabletBackground();
 setInterval(iaTabletBackground, 300000);
 </script>
-<!-- IA PACK FIM -->
 </body>
 </html>
