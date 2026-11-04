@@ -313,24 +313,70 @@ function gerarCSV(){if(!DADOS_FILTRADOS.length)return;let csv='Protocolo,Bloco,A
 function gerarPDF(){if(!DADOS_FILTRADOS.length)return;const {jsPDF}=window.jspdf;let doc=new jsPDF();doc.text(document.getElementById('modalTitulo').innerText,10,10);doc.autoTable({head:[['Protocolo','Bloco/Apto','Box','Data']],body:DADOS_FILTRADOS.map(i=>[i.protocolo||i.codigo,`${i.bloco||''} ${i.apartamento||''}`,i.box,i.data||'']),startY:20});doc.save('relatorio.pdf');}
 function aplicarFiltroData(){}
 function limparFiltro(){document.getElementById('dataDe').value='';document.getElementById('dataAte').value='';}
-async function carregarConds(){try{let r=await fetchAuth(API_BASE+'/api/condominios');let conds=await r.json();let div=document.getElementById('listaC');if(div)div.innerHTML=conds.filter(c=>String(c.id)!='1').map(c=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><b>${c.armario_num||'SEM-ARM'} - ${c.nome}</b><div style="font-size:10px;color:#888">${c.armario_num||'Sem número'} • ${c.total_boxes||16} boxes</div></div><div style="display:flex;gap:6px"><button class="btn btn-o" onclick="abrirCond('${c.id}')">Abrir</button><button class="btn" style="background:#DC2626;color:#fff" onclick="excluirCondModal('${c.id}','${c.nome}')">🗑️</button></div></div>`).join('');}catch(e){}}async function abrirCond(id){COND_ID=id;try{let r=await fetchAuth(API_BASE+'/api/condominios/'+id);let c=await r.json();document.getElementById('dNome').innerText=c.nome;document.getElementById('cArm').value=c.armario_num||'';document.getElementById('cEnd').value=c.endereco||'';document.getElementById('cValorMensal').value=c.valor_mensal||'';document.getElementById('cValorInst').value=c.valor_instalacao||'';document.getElementById('cAtivo').value=c.status||'ativo';document.getElementById('cVenc').value=c.vencimento||'';document.getElementById('cDataInicio').value=c.data_inicio||'';document.getElementById('cPeriodo').value=c.periodo||'12 meses';show('detail');carregarMoradores(id);}catch(e){}}
-async function carregarMoradores(id){try{let r=await fetchAuth(API_BASE+'/api/moradores?condominio='+id);let mors=await r.json();document.getElementById('qtdMor').innerText=`Moradores (${mors.length})`;document.getElementById('listaM').innerHTML=mors.map(m=>`<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee;font-size:11px"><span><b>${m.nome}</b> - Bl ${m.bloco} Ap ${m.apto||m.apartamento}</span><button class="btn btn-g" style="padding:4px 8px" onclick="delMor('${m.id}')">X</button></div>`).join('');}catch(e){}}
+async function carregarConds(){
+  try{
+    let r=await fetchAuth(API_BASE+'/api/condominios');
+    let conds=await r.json();
+    let div=document.getElementById('listaC');
+    if(!div) return;
+    div.innerHTML=conds.filter(c=>String(c.id)!='1').map(c=>{
+      let arm = c.armario_num || c.armario_numero || c.codigo_armario || c.armario_id || 'SEM-ARM';
+      let nome = c.nome || 'Sem nome';
+      let boxes = c.total_boxes || 16;
+      let isSemArm = arm==='SEM-ARM';
+      return `<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:42px;height:42px;border-radius:10px;background:${isSemArm?'#FEF2F2':'#FFF7ED'};border:1px solid ${isSemArm?'#FECACA':'#FFEDD5'};display:flex;align-items:center;justify-content:center;font-size:18px">${isSemArm?'⚠️':'📦'}</div>
+          <div>
+            <b style="font-size:13px">${arm} - ${nome}</b>
+            <div style="font-size:10px;color:#888;margin-top:2px;display:flex;gap:6px;align-items:center">
+              <span style="background:${isSemArm?'#FEE2E2':'#DCFCE7'};color:${isSemArm?'#991B1B':'#166534'};padding:2px 6px;border-radius:99px;font-weight:700">${arm}</span>
+              - ${boxes} boxes ${isSemArm?'<a onclick="corrigirArm(\''+c.id+'\')" style="color:#FF6A00;cursor:pointer;text-decoration:underline;margin-left:6px">🔧 corrigir</a>':''}
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-o" style="padding:8px 16px" onclick="abrirCond('${c.id}')">Abrir</button>
+          <button onclick="excluirCondModal('${c.id}','${nome.replace(/'/g,'')}')" title="Excluir condomínio" style="background:linear-gradient(135deg,#EF4444,#DC2626);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(220,38,38,.3);display:flex;align-items:center;gap:6px">🗑️ Excluir</button>
+        </div>
+      </div>`;
+    }).join('') || '<div style="padding:20px;text-align:center;color:#888">Nenhum condomínio</div>';
+  }catch(e){console.error(e)}}
+
+async function corrigirArm(id){
+  if(!confirm('Gerar novo ARM- para este condomínio?')) return;
+  try{
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+id,{method:'PUT',headers:authHeadersJson(),body:JSON.stringify({armario_num:'',codigo_armario:''})});
+    if(r.ok){ carregarConds(); carregarCondsSelect(); alert('✅ Corrigido!'); }
+  }catch(e){alert('Erro:'+e.message)}
+}
+
 async function delMor(id){if(!confirm('Excluir?'))return;try{await fetchAuth(API_BASE+'/api/moradores?id='+id,{method:'DELETE'});carregarMoradores(COND_ID);}catch(e){}}
+
 function addMor(){let nome=prompt('Nome:');if(!nome)return;let bloco=prompt('Bloco:')||'';let apto=prompt('Apto:')||'';fetchAuth(API_BASE+'/api/moradores',{method:'POST',headers:authHeadersJson(),body:JSON.stringify({nome,bloco,apto,condominio:COND_ID})}).then(()=>carregarMoradores(COND_ID));}
+
 async function importarCSV(){let f=document.getElementById('impFile').files[0];if(!f)return;let fd=new FormData();fd.append('file',f);fd.append('condominio',COND_ID);try{await fetchAuth(API_BASE+'/api/moradores/import',{method:'POST',body:fd});carregarMoradores(COND_ID);}catch(e){}}
+
 async function carregarFinanceiro(){try{let r=await fetchAuth(API_BASE+'/api/condominios');let conds=await r.json();let ativos=conds.filter(c=>String(c.id)!='1'&&c.status=='ativo');let mrr=0;ativos.forEach(c=>{let v=parseFloat(String(c.valor_mensal||'0').replace(',','.'));if(!isNaN(v))mrr+=v;});let lista=document.getElementById('listaFinanceiro');if(lista){lista.innerHTML=ativos.map(c=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:11px"><span><b>${c.nome}</b> • ${c.armario_num||''}</span><span>R$ ${c.valor_mensal||'0,00'}</span></div>`).join('')||'Sem dados';}document.getElementById('finMrr').innerText='R$ '+mrr.toFixed(2).replace('.',',');document.getElementById('finMrrSub').innerText=ativos.length+' condomínios ativos';document.getElementById('finReceber').innerText='R$ '+mrr.toFixed(2).replace('.',',');}catch(e){}}
+
 function exportarFinanceiroCSV(){}
 function exportarFinanceiroPDF(){}
 function exportarHistoricoCSV(){gerarCSV();}
 function exportarHistoricoPDF(){gerarPDF();}
+
 async function carregarCondsCheck(){try{let r=await fetchAuth(API_BASE+'/api/condominios');let conds=await r.json();let div=document.getElementById('listaCondsCheck');if(div)div.innerHTML=conds.filter(c=>String(c.id)!='1').map(c=>`<label class="check-item"><input type="checkbox" value="${c.id}"> ${c.nome} (${c.armario_num||''})</label>`).join('');}catch(e){}}
+
 async function gerarKey(){let nome=document.getElementById('parcNome').value||'Parceiro';let checks=[...document.querySelectorAll('#listaCondsCheck input:checked')].map(i=>i.value);try{let r=await fetchAuth(API_BASE+'/api/integracao/gerar',{method:'POST',headers:authHeadersJson(),body:JSON.stringify({nome,condominios_permitidos:checks})});let data=await r.json();document.getElementById('keyOut').style.display='block';document.getElementById('keyOut').innerText=data.api_key||JSON.stringify(data);}catch(e){}}
+
 function copiarKey(){let el=document.getElementById('keyOut');if(el) {navigator.clipboard.writeText(el.innerText); alert('Copiado');}}
+
 function wlSalvar(){}
 function wlCarregar(){}
 function wlPreviewTotem(){}
 function wlPreviewLogo(){}
+
 let OPERADORES_CACHE = JSON.parse(localStorage.getItem('sc_operadores')||'[]');
+
 function novoOperador(){
   document.getElementById('opNome').value='';
   document.getElementById('opCnpj').value='';
@@ -338,7 +384,9 @@ function novoOperador(){
   document.getElementById('opCidade').value='';
   document.getElementById('modalNovoOperador').style.display='flex';
 }
+
 function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
+
 function salvarNovoOperador(){
   let nome=document.getElementById('opNome').value.trim();
   if(!nome){ alert('Nome obrigatório'); return; }
@@ -348,6 +396,7 @@ function salvarNovoOperador(){
   fecharNovoOperador();
   carregarOperadores();
 }
+
 function carregarOperadores(){
   let div=document.getElementById('listaOperadores');
   let divDist=document.getElementById('distribOperador');
@@ -361,6 +410,7 @@ function carregarOperadores(){
   if(divDist) divDist.innerHTML=OPERADORES_CACHE.map(o=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:11px"><span>${o.nome}</span><span style="font-weight:700">${o.criados||0} armários</span></div>`).join('')||'Sem dados';
   if(sel){ sel.innerHTML='<option value="">Sem operador (Matriz)</option>'+OPERADORES_CACHE.map(o=>`<option value="${o.id}">${o.nome}</option>`).join(''); }
 }
+
 function delOperador(id){ if(!confirm('Excluir?')) return; OPERADORES_CACHE=OPERADORES_CACHE.filter(o=>o.id!=id); localStorage.setItem('sc_operadores', JSON.stringify(OPERADORES_CACHE)); carregarOperadores(); }
 
 let EX_ID=null;
@@ -389,9 +439,12 @@ async function salvarContrato(){
   let payload={armario_num:document.getElementById('cArm').value,endereco:document.getElementById('cEnd').value,valor_mensal:document.getElementById('cValorMensal').value,valor_instalacao:document.getElementById('cValorInst').value,status:document.getElementById('cAtivo').value,vencimento:document.getElementById('cVenc').value,data_inicio:document.getElementById('cDataInicio').value,periodo:document.getElementById('cPeriodo').value,operador:document.getElementById('cOperador').value};
   try{ let r=await fetchAuth(API_BASE+'/api/condominios/'+COND_ID,{method:'PUT',headers:authHeadersJson(),body:JSON.stringify(payload)}); if(r.ok){ alert('Contrato salvo!'); carregarConds(); } else alert('Erro'); }catch(e){ alert('Erro: '+e.message); }
 }
+
 function novoCond(){document.getElementById('nArm').value='ARM-'+Math.floor(10000+Math.random()*90000);document.getElementById('modalNovoCond').style.display='flex';}
 function fecharNovoCond(){document.getElementById('modalNovoCond').style.display='none';}
+
 async function salvarNovoCond(){let payload={nome:document.getElementById('nNome').value,cnpj:document.getElementById('nCnpj').value,endereco:document.getElementById('nEnd').value,armario_num:document.getElementById('nArm').value,total_boxes:parseInt(document.getElementById('nBoxes').value),data_inicio:document.getElementById('nDataInicio').value,periodo:document.getElementById('nPeriodo').value,valor_mensal:document.getElementById('nValor').value,valor_instalacao:document.getElementById('nValorInst').value};try{let r=await fetchAuth(API_BASE+'/api/condominios',{method:'POST',headers:authHeadersJson(),body:JSON.stringify(payload)});if(r.ok){fecharNovoCond();carregarConds();carregarCondsSelect();}}catch(e){}}
+
 carregarCondsSelect();
 carregarDados();
 checkTokenValido();
