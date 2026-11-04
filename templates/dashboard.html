@@ -339,6 +339,24 @@ async function abrirCond(id){
   }
 }
 
+async function carregarMoradores(condId){
+  try{
+    COND_ID=condId;
+    let r=await fetchAuth(API_BASE+'/api/moradores?condominio='+condId);
+    if(!r.ok){
+      document.getElementById('listaM').innerHTML='<div style="padding:20px;color:#888">Sem moradores</div>';
+      document.getElementById('qtdMor').innerText='Moradores (0)';
+      return;
+    }
+    let moradores=await r.json();
+    document.getElementById('qtdMor').innerText=`Moradores (${moradores.length})`;
+    document.getElementById('listaM').innerHTML=moradores.map(m=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:11px"><span><b>${m.nome||''}</b> - Bl ${m.bloco||''} Ap ${m.apto||m.apartamento||''}</span><button class="btn btn-g" onclick="delMor('${m.id}')">X</button></div>`).join('')||'<div style="padding:20px;color:#888">Nenhum morador</div>';
+  }catch(e){
+    console.error(e);
+    document.getElementById('listaM').innerHTML='<div style="color:red;padding:10px">Erro ao carregar moradores</div>';
+  }
+}
+
 async function carregarConds(){
   try{
     let r=await fetchAuth(API_BASE+'/api/condominios');
