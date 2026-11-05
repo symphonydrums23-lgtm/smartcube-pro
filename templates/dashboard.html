@@ -174,12 +174,16 @@ async function fetchAuth(url,opts={}){opts.headers={...(opts.headers||{}),...aut
 let COND_ID='1',DADOS=null,TIPO_ATUAL='',DADOS_FILTRADOS=[],HIST_TIPO='todos',HIST_CACHE=[]
 
 // NOVO: PRESETS MODELOS
-"1_BOX":{P:1,M:0,G:0,fisico:2,util:1,label:"1 Box = Fisico 2 (1 tablet 03 + 1 útil)"},
-"8_BOXES":{P:4,M:2,G:1,fisico:8,util:7,label:"7 úteis = Fisico 8"},
-"16_BOXES":{P:9,M:4,G:2,fisico:16,util:15,label:"15 úteis = Fisico 16"},
-"18_BOXES":{P:10,M:5,G:2,fisico:18,util:17,label:"17 úteis = Fisico 18 (09/18 G)"},
-"24_BOXES":{P:13,M:7,G:3,fisico:24,util:23,label:"23 úteis = Fisico 24"},
-"32_BOXES":{P:19,M:8,G:4,fisico:32,util:31,label:"31 úteis = Fisico 32"}
+const PRESETS = {
+  "1_BOX": {P:1,M:0,G:0,fisico:2,util:1,label:"1 Box = Fisico 2 (1 tablet 03 + 1 útil)"},
+  "8_BOXES": {P:4,M:2,G:1,fisico:8,util:7,label:"7 úteis = Fisico 8"},
+  "16_BOXES": {P:9,M:4,G:2,fisico:16,util:15,label:"15 úteis = Fisico 16"},
+  "18_BOXES": {P:10,M:5,G:2,fisico:18,util:17,label:"17 úteis = Fisico 18 (09/18 G)"},
+  "24_BOXES": {P:13,M:7,G:3,fisico:24,util:23,label:"23 úteis = Fisico 24"},
+  "32_BOXES": {P:19,M:8,G:4,fisico:32,util:31,label:"31 úteis = Fisico 32"}
+};
+
+const API_BASE = localStorage.getItem('SC_API_URL') || 'https://SEU-BACKEND.onrender.com';
 function atualizarPreset(){
   let mod=document.getElementById('nModelo')?.value||'18_BOXES';
   let p=PRESETS[mod];
