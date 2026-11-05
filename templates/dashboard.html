@@ -174,14 +174,12 @@ async function fetchAuth(url,opts={}){opts.headers={...(opts.headers||{}),...aut
 let COND_ID='1',DADOS=null,TIPO_ATUAL='',DADOS_FILTRADOS=[],HIST_TIPO='todos',HIST_CACHE=[]
 
 // NOVO: PRESETS MODELOS
-const PRESETS = {
-"1_BOX":{P:1,M:0,G:0,fisico:2,util:1,label:"1 Box = Físico 2 (1 tablet 03 + 1 útil)"},
-"8_BOXES":{P:5,M:2,G:1,fisico:9,util:8,label:"8 úteis = Físico 9"},
-"16_BOXES":{P:10,M:4,G:2,fisico:17,util:16,label:"16 úteis = Físico 17"},
-"18_BOXES":{P:11,M:5,G:2,fisico:19,util:18,label:"18 úteis = Físico 19 (09/18 G)"},
-"24_BOXES":{P:14,M:7,G:3,fisico:25,util:24,label:"24 úteis = Físico 25"},
-"32_BOXES":{P:20,M:8,G:4,fisico:33,util:32,label:"32 úteis = Físico 33"}
-};
+"1_BOX":{P:1,M:0,G:0,fisico:2,util:1,label:"1 Box = Fisico 2 (1 tablet 03 + 1 útil)"},
+"8_BOXES":{P:4,M:2,G:1,fisico:8,util:7,label:"7 úteis = Fisico 8"},
+"16_BOXES":{P:9,M:4,G:2,fisico:16,util:15,label:"15 úteis = Fisico 16"},
+"18_BOXES":{P:10,M:5,G:2,fisico:18,util:17,label:"17 úteis = Fisico 18 (09/18 G)"},
+"24_BOXES":{P:13,M:7,G:3,fisico:24,util:23,label:"23 úteis = Fisico 24"},
+"32_BOXES":{P:19,M:8,G:4,fisico:32,util:31,label:"31 úteis = Fisico 32"}
 function atualizarPreset(){
   let mod=document.getElementById('nModelo')?.value||'18_BOXES';
   let p=PRESETS[mod];
@@ -193,7 +191,7 @@ function atualizarPreset(){
   let util=dupla? p.util*2 : p.util;
   let fisico=dupla? p.fisico*2 : p.fisico;
   let resumo=document.getElementById('nResumo');
-  if(resumo) resumo.innerText = `${p.label} | Útil:${util} Físico:${fisico} ${dupla?' Dupla Face 2x03':''}`;
+  if(resumo) resumo.innerText = `${p.label} | Útil:${util} Fisico:${fisico} ${dupla?' Dupla Face 2x03 - 30 úteis + 2 tablets = 32 portas - Frente e verso mesma numeração - Box 03 tablet (frente e verso)':''}`;
 }
 
 function atualizarRelogio(){
