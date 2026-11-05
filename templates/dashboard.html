@@ -191,8 +191,7 @@ function atualizarPreset(){
   let util=dupla? p.util*2 : p.util;
   let fisico=dupla? p.fisico*2 : p.fisico;
   let resumo=document.getElementById('nResumo');
-  if(resumo) resumo.innerText = `${p.label} | Útil:${util} Fisico:${fisico} ${dupla?' Dupla Face 2x03 - 30 úteis + 2 tablets = 32 portas - Frente e verso mesma numeração - Box 03 tablet (frente e verso)':''}`;
-}
+if(resumo) resumo.innerText = `${p.label} | Útil:${util} Fisico:${fisico} ${dupla?' Dupla Face 2x03 - 30 úteis + 2 tablets = 32 portas':''}`;}
 
 function atualizarRelogio(){
   const agora = new Date();
