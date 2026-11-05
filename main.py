@@ -18,17 +18,28 @@ ADMIN_PASS = os.getenv("SMARTCUBE_ADMIN_PASS")
 if not ADMIN_USER or not ADMIN_PASS:
     raise RuntimeError("SMARTCUBE_USER e SMARTCUBE_ADMIN_PASS obrigatórios no .env")
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5000,http://127.0.0.1:5000").split(",")
-ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS if o.strip()]
+# === FIX v5.8.2 - LIBERA GITHUB PAGES - APENAS ISSO MUDA NO TOPO ===
+ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "")
+if ALLOWED_ORIGINS_RAW:
+    ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
+else:
+    ALLOWED_ORIGINS = [
+        "http://localhost:5000", "http://127.0.0.1:5000",
+        "https://localhost:5000",
+        "http://localhost:3000",
+    ]
+ALLOWED_ORIGIN_REGEX = r"https://.*\.github\.io|https://.*\.onrender\.com|https://.*\.vercel\.app|https://.*\.netlify\.app"
 
 app = FastAPI(title="SmartCube API v5.8 - TABLET OCUPA BOX")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
-    allow_methods=["GET","POST","PUT","DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
+# === FIM DO FIX ===
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
@@ -176,6 +187,10 @@ def registrar_auditoria(acao, usuario="sistema", detalhes="", condominio_id="", 
     if len(logs) > 1000:
         logs = logs[-1000:]
     save_json(ARQ_AUDIT, logs)
+
+@app.get("/api/health")
+def health():
+    return {"ok": True, "status": "online", "versao": "v5.8.2-tablet-ocupa-cors-fix", "time": datetime.now().isoformat()}
 
 @app.get("/api/auditoria")
 def listar_auditoria(request: Request, token: str = Depends(requer_auth)):
