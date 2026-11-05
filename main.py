@@ -21,7 +21,7 @@ if not ADMIN_USER or not ADMIN_PASS:
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5000,http://127.0.0.1:5000").split(",")
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS if o.strip()]
 
-app = FastAPI(title="SmartCube API v5.7 - P/M/G + MODELOS + DUPLA FACE")
+app = FastAPI(title="SmartCube API v5.8 - TABLET OCUPA BOX")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -41,13 +41,15 @@ FILE_LOCK = threading.Lock()
 
 BOX_TABLET_RESERVADO = "03"
 BOXES_TABLET_RESERVADOS = {"03", "3", "03F", "03V", "03_F", "03_V", "03-F", "03-V"}
+
+# v5.8 - TABLET OCUPA 1 BOX (não é extra) - CORRECAO PRINCIPAL
 MODELOS_PRESET = {
     "1_BOX": {"label": "1 Box (Kit)", "fisico": 2, "util": 1, "P": 1, "M": 0, "G": 0, "G_boxes": []},
-    "8_BOXES": {"label": "8 Boxes", "fisico": 9, "util": 8, "P": 5, "M": 2, "G": 1, "G_boxes": ["08"]},
-    "16_BOXES": {"label": "16 Boxes", "fisico": 17, "util": 16, "P": 10, "M": 4, "G": 2, "G_boxes": ["09","16"]},
-    "18_BOXES": {"label": "18 Boxes (Foto)", "fisico": 19, "util": 18, "P": 11, "M": 5, "G": 2, "G_boxes": ["09","18"]},
-    "24_BOXES": {"label": "24 Boxes", "fisico": 25, "util": 24, "P": 14, "M": 7, "G": 3, "G_boxes": ["09","18","24"]},
-    "32_BOXES": {"label": "32 Boxes", "fisico": 33, "util": 32, "P": 20, "M": 8, "G": 4, "G_boxes": ["09","18","24","32"]},
+    "8_BOXES": {"label": "8 Boxes", "fisico": 8, "util": 7, "P": 4, "M": 2, "G": 1, "G_boxes": ["08"]},
+    "16_BOXES": {"label": "16 Boxes", "fisico": 16, "util": 15, "P": 9, "M": 4, "G": 2, "G_boxes": ["09","16"]},
+    "18_BOXES": {"label": "18 Boxes (Foto)", "fisico": 18, "util": 17, "P": 10, "M": 5, "G": 2, "G_boxes": ["09","18"]},
+    "24_BOXES": {"label": "24 Boxes", "fisico": 24, "util": 23, "P": 13, "M": 7, "G": 3, "G_boxes": ["09","18","24"]},
+    "32_BOXES": {"label": "32 Boxes", "fisico": 32, "util": 31, "P": 19, "M": 8, "G": 4, "G_boxes": ["09","18","24","32"]},
 }
 
 def get_path(nome):
@@ -332,6 +334,10 @@ def garantir_codigo_armario(conds_list):
         if "qtd_g" not in c: c["qtd_g"] = 1
         if "modelo" not in c: c["modelo"] = "18_BOXES"
         if "dupla_face" not in c: c["dupla_face"] = False
+        if "blocos" not in c: c["blocos"] = []
+        if c.get("total_fisico",0) > 32 and c.get("modelo")=="32_BOXES":
+            c["total_fisico"]=32
+            c["total_util"]=31 if not c.get("dupla_face") else 30
     if alterado:
         save_json(ARQ_CONDS, conds_list)
     return conds_list
@@ -410,7 +416,8 @@ async def tablet_entrega(payload: dict, request: Request = None):
         "tamanho_solicitado": tamanho_solicitado,
         "tamanho_real": tamanho_final if not foi_upgrade else get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)[1],
         "upgrade": foi_upgrade,
-        "qr_valido": True
+        "qr_valido": True,
+        "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
     }
     if foi_upgrade:
         for bx in (cond_config.get("boxes_lista",[]) if cond_config else []):
@@ -421,8 +428,8 @@ async def tablet_entrega(payload: dict, request: Request = None):
         nova["tamanho_real"]=tamanho_solicitado
     dados["lista"].append(nova)
     save_json(ARQ_DADOS, dados)
-    registrar_auditoria("ENTREGA_TABLET", detalhes=f"Box {nova['box']} {tamanho_solicitado}->{nova['tamanho_real']} Prot {nova['protocolo']} Cond {condominio_id}", condominio_id=condominio_id, request=request)
-    return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "tamanho_solicitado": tamanho_solicitado, "tamanho_real": nova["tamanho_real"], "upgrade": foi_upgrade}
+    registrar_auditoria("ENTREGA_TABLET", detalhes=f"Box {nova['box']} Bloco:{nova['bloco']} Apto:{nova['apartamento']} {tamanho_solicitado}->{nova['tamanho_real']} Prot {nova['protocolo']} Cond {condominio_id}", condominio_id=condominio_id, request=request)
+    return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "codigo": codigo_morador, "qr_code": qr_morador, "tamanho_solicitado": tamanho_solicitado, "tamanho_real": nova["tamanho_real"], "upgrade": foi_upgrade, "bloco": nova["bloco"], "apartamento": nova["apartamento"]}
 
 @app.post("/api/tablet/retirada")
 async def tablet_retirada(payload: dict, request: Request = None):
@@ -441,14 +448,26 @@ async def tablet_retirada(payload: dict, request: Request = None):
             nova_lista.append(item)
     if not achado:
         raise HTTPException(status_code=404, detail="Código não encontrado ou já utilizado")
+    try:
+        expira = datetime.fromisoformat(achado.get("expira_em",""))
+        if datetime.now() > expira:
+            achado["qr_valido"]=False
+            dados["lista"]=nova_lista
+            dados["historico"].append(achado)
+            save_json(ARQ_DADOS, dados)
+            raise HTTPException(status_code=410, detail="QR Code expirado")
+    except HTTPException:
+        raise
+    except:
+        pass
     achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y")
     achado["hora_retirada"] = datetime.now().strftime("%H:%M")
     achado["qr_valido"] = False
     dados["lista"]=nova_lista
     dados["historico"].append(achado)
     save_json(ARQ_DADOS, dados)
-    registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado['box']} Cod morador usado", request=request)
-    return {"ok": True, "box": achado["box"]}
+    registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado['box']} Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", request=request)
+    return {"ok": True, "box": achado["box"], "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
 
 @app.post("/api/condominios")
 def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth)):
@@ -463,17 +482,40 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
     qtd_m = int(payload.get("qtd_m", payload.get("M", preset["M"])))
     qtd_g = int(payload.get("qtd_g", payload.get("G", preset["G"])))
     dupla_face = bool(payload.get("dupla_face", False))
-    total_fisico_base = int(payload.get("total_fisico", preset["fisico"]))
-    total_util = qtd_p+qtd_m+qtd_g
-    if dupla_face:
-        total_util = total_util*2
-        total_fisico = total_fisico_base*2 if total_fisico_base else total_util+2
+    blocos_raw = payload.get("blocos", payload.get("bloco_lista", ""))
+    if isinstance(blocos_raw, str):
+        blocos = [b.strip() for b in blocos_raw.split(",") if b.strip()] if blocos_raw else []
+    elif isinstance(blocos_raw, list):
+        blocos = blocos_raw
     else:
-        total_fisico = total_fisico_base if total_fisico_base else total_util+1
+        blocos = []
+    total_fisico_base = int(payload.get("total_fisico", preset["fisico"]))
     G_boxes = payload.get("G_boxes", preset["G_boxes"])
-    boxes_lista = gerar_boxes_lista(total_util if not dupla_face else total_util//2, qtd_p if not dupla_face else qtd_p//2, qtd_m if not dupla_face else qtd_m//2, qtd_g if not dupla_face else qtd_g//2, G_boxes)
+
     if dupla_face:
-        boxes_lista = boxes_lista + [{"numero": b["numero"]+"V", "tamanho": b["tamanho"]} for b in boxes_lista]
+        total_fisico = total_fisico_base
+        total_util = total_fisico - 2
+        qtd_p_lado = qtd_p // 2
+        qtd_m_lado = qtd_m // 2
+        qtd_g_lado = qtd_g // 2
+        resto = (qtd_p+qtd_m+qtd_g) - (qtd_p_lado+qtd_m_lado+qtd_g_lado)*2
+        if resto>0:
+            qtd_p_lado += resto
+        total_util_lado = qtd_p_lado+qtd_m_lado+qtd_g_lado
+    else:
+        total_fisico = total_fisico_base
+        total_util = total_fisico - 1
+        total_util_lado = total_util
+        qtd_p_lado, qtd_m_lado, qtd_g_lado = qtd_p, qtd_m, qtd_g
+
+    boxes_lista = gerar_boxes_lista(total_util_lado, qtd_p_lado, qtd_m_lado, qtd_g_lado, G_boxes)
+
+    label_dupla = ""
+    if dupla_face:
+        label_dupla = f"FRENTE: {total_fisico//2} portas ({total_util//2} úteis + 1 tablet) | VERSO: {total_fisico//2} portas ({total_util//2} úteis + 1 tablet) = {total_util} úteis + 2 tablets = {total_fisico} portas"
+    else:
+        label_dupla = f"{total_util} úteis + 1 Tablet = {total_fisico} portas | Blocos: {', '.join(blocos) if blocos else 'Único'}"
+
     novo = {
         "id": str(uuid.uuid4())[:8],
         "nome": nome,
@@ -482,6 +524,8 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
         "total_boxes": total_util,
         "total_util": total_util,
         "total_fisico": total_fisico,
+        "total_tablets": 2 if dupla_face else 1,
+        "blocos": blocos,
         "qtd_p": qtd_p,
         "qtd_m": qtd_m,
         "qtd_g": qtd_g,
@@ -489,14 +533,17 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
         "G_boxes": G_boxes,
         "boxes_lista": boxes_lista,
         "box_tablet": BOX_TABLET_RESERVADO,
+        "box_tablet_frente": BOX_TABLET_RESERVADO,
+        "box_tablet_verso": BOX_TABLET_RESERVADO,
         "codigo_armario": codigo_armario,
         "armario_numero": codigo_armario,
         "armario_id": codigo_armario,
         "status":"ativo",
-        "criado_em": datetime.now().isoformat()
+        "criado_em": datetime.now().isoformat(),
+        "label_dupla": label_dupla
     }
     conds.append(novo); save_json(ARQ_CONDS, conds)
-    registrar_auditoria("CRIOU_CONDOMINIO", detalhes=f"{novo['nome']} - {codigo_armario} Mod:{modelo} P:{qtd_p} M:{qtd_m} G:{qtd_g} Dupla:{dupla_face}", condominio_id=novo["id"], request=request)
+    registrar_auditoria("CRIOU_CONDOMINIO", detalhes=f"{novo['nome']} - {codigo_armario} Mod:{modelo} P:{qtd_p} M:{qtd_m} G:{qtd_g} Dupla:{dupla_face} Blocos:{blocos} {label_dupla}", condominio_id=novo["id"], request=request)
     return novo
 
 @app.put("/api/condominios/{cond_id}")
@@ -506,24 +553,46 @@ def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: 
         if str(c["id"])==str(cond_id):
             for k in payload:
                 if k in ["codigo_armario","armario_numero","armario_id"] and not payload[k]: continue
+                if k=="blocos" or k=="bloco_lista":
+                    raw = payload[k]
+                    if isinstance(raw, str):
+                        c["blocos"]=[b.strip() for b in raw.split(",") if b.strip()]
+                    else:
+                        c["blocos"]=raw
+                    continue
                 c[k]=payload[k]
             if not c.get("codigo_armario"):
                 c["codigo_armario"] = c.get("armario_numero") or gerar_codigo_armario()
                 c["armario_numero"] = c["codigo_armario"]
                 c["armario_id"] = c["codigo_armario"]
-            if any(k in payload for k in ["qtd_p","qtd_m","qtd_g","modelo","dupla_face"]):
+            if any(k in payload for k in ["qtd_p","qtd_m","qtd_g","modelo","dupla_face","blocos","bloco_lista"]):
                 modelo = c.get("modelo","18_BOXES")
                 preset = MODELOS_PRESET.get(modelo, MODELOS_PRESET["18_BOXES"])
                 qtd_p = int(c.get("qtd_p", preset["P"]))
                 qtd_m = int(c.get("qtd_m", preset["M"]))
                 qtd_g = int(c.get("qtd_g", preset["G"]))
                 dupla = bool(c.get("dupla_face", False))
-                total_util = qtd_p+qtd_m+qtd_g
-                if dupla: total_util*=2
+                blocos = c.get("blocos", [])
+                total_fisico = int(preset["fisico"])
+                if dupla:
+                    total_util = total_fisico - 2
+                    total_util_lado = total_util//2
+                    qtd_p_lado = qtd_p//2
+                    qtd_m_lado = qtd_m//2
+                    qtd_g_lado = qtd_g//2
+                    resto = (qtd_p+qtd_m+qtd_g) - (qtd_p_lado+qtd_m_lado+qtd_g_lado)*2
+                    if resto>0: qtd_p_lado+=resto
+                else:
+                    total_util = total_fisico - 1
+                    total_util_lado = total_util
+                    qtd_p_lado, qtd_m_lado, qtd_g_lado = qtd_p, qtd_m, qtd_g
                 c["total_boxes"]=total_util
                 c["total_util"]=total_util
+                c["total_fisico"]=total_fisico
+                c["total_tablets"]=2 if dupla else 1
                 c["boxes_config"]={"P":qtd_p,"M":qtd_m,"G":qtd_g}
-                c["boxes_lista"]=gerar_boxes_lista(total_util if not dupla else total_util//2, qtd_p if not dupla else qtd_p//2, qtd_m if not dupla else qtd_m//2, qtd_g if not dupla else qtd_g//2, c.get("G_boxes"))
+                c["boxes_lista"]=gerar_boxes_lista(total_util_lado, qtd_p_lado, qtd_m_lado, qtd_g_lado, c.get("G_boxes"))
+                c["label_dupla"]=f"FRENTE: {total_fisico//2} portas ({total_util//2} úteis + 1 tablet) | VERSO: {total_fisico//2} portas" if dupla else f"{total_util} úteis + 1 Tablet = {total_fisico} portas"
             c["atualizado_em"]=datetime.now().isoformat()
             save_json(ARQ_CONDS, conds)
             return c
@@ -695,11 +764,12 @@ async def api_entregas_compat(payload: dict, request: Request = None, token: str
         "hora": payload.get("hora") or datetime.now().strftime("%H:%M"),
         "created_at": payload.get("data_hora") or datetime.now().isoformat(),
         "condominio_id": condominio_id,
-        "qr_valido": True
+        "qr_valido": True,
+        "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
     }
     dados["lista"].append(nova); save_json(ARQ_DADOS, dados)
     registrar_auditoria("ENTREGA_API", detalhes=nova["protocolo"], request=request)
-    return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"]}
+    return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "bloco": nova["bloco"]}
 
 @app.post("/api/retiradas")
 async def api_retiradas_compat(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
@@ -793,7 +863,7 @@ def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcio
     raw=load_json(ARQ_DADOS, {"lista":[],"historico":[]})
     lista = raw.get("lista",[]) if str(condominio)=="1" else [x for x in raw.get("lista",[]) if str(x.get("condominio_id"))==str(condominio)]
     perc=int(len(lista)/int(raw.get("total_boxes",16))*100) if raw.get("total_boxes") else 0
-    resultado={"condominio":condominio,"ocupados":len(lista),"previsao_percent":min(100,perc+15),"total_atrasados":0,"alertas_24h":[],"atualizado":datetime.now().isoformat(),"versao":"v5.7-modelos"}
+    resultado={"condominio":condominio,"ocupados":len(lista),"previsao_percent":min(100,perc+15),"total_atrasados":0,"alertas_24h":[],"atualizado":datetime.now().isoformat(),"versao":"v5.8-tablet-ocupa"}
     _set_cache_ia("lotacao_"+condominio, resultado)
     return resultado
 
@@ -803,7 +873,7 @@ def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_
     if not box_id.isdigit() or not 1 <= int(box_id) <= 32:
         raise HTTPException(400, "Box inválido")
     if box_id in BOXES_TABLET_RESERVADOS:
-        raise HTTPException(400, "Box 03 é do tablet, não pode abrir remotamente")
+        raise HTTPException(400, "Box 03 é do tablet, não pode abrir remotamente - trava dupla face")
     registrar_auditoria("ABERTURA_REMOTA_ADMIN", usuario=TOKENS_VALIDOS.get(token,{}).get("user","admin"), detalhes=f"Abertura remota Box {box_id}", request=request)
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     achado = None
@@ -820,7 +890,7 @@ def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_
         dados["lista"] = nova_lista
         dados["historico"].append(achado)
         save_json(ARQ_DADOS, dados)
-    return {"ok": True, "box": box_id, "msg": f"Comando de abertura enviado para Box {box_id}"}
+    return {"ok": True, "box": box_id, "msg": f"Comando de abertura enviado para Box {box_id} - libera frente e verso (mesma caixa física)"}
 
 if __name__ == "__main__":
     import uvicorn
