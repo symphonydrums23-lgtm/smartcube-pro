@@ -166,13 +166,26 @@ body{background:#F5F6FA;display:flex;min-height:100vh}
 
 <div id="modalNovoOperador" class="modal" onclick="if(event.target==this) fecharNovoOperador()"><div class="modal-box" style="max-width:480px"><div class="modal-head"><b>🏢 Novo Operador / Franqueado</b><button class="btn btn-b" onclick="fecharNovoOperador()">✕</button></div><div style="padding:18px"><div><span class="label">Nome do Operador *</span><input id="opNome" class="input" placeholder="Ex: Smart Cube Taguatinga"></div><div style="margin-top:12px"><span class="label">CNPJ / CPF</span><input id="opCnpj" class="input"></div><div style="margin-top:12px"><span class="label">Telefone / WhatsApp</span><input id="opTel" class="input"></div><div style="margin-top:12px"><span class="label">Cidade / Região</span><input id="opCidade" class="input" placeholder="Taguatinga-DF"></div><button class="btn btn-o" style="width:100%;padding:12px;margin-top:18px" onclick="salvarNovoOperador()">Salvar Operador</button></div></div></div>
 <script>
-const API_BASE = '';
+const API_BASE = "https://smartcube-pro-1.onrender.com";
 function authHeader(){const t=localStorage.getItem('sc_token');return t?{'Authorization':'Bearer '+t}:{};}
 function authHeadersJson(){return {...authHeader(),'Content-Type':'application/json'};}
 async function checkTokenValido(){try{let r=await fetch(API_BASE+'/api/auth/verificar',{headers:authHeader()});if(!r.ok){logout();}}catch{logout();}}
-async function fetchAuth(url,opts={}){opts.headers={...(opts.headers||{}),...authHeader()};let r=await fetch(url,opts);if(r.status===401||r.status===403){logout();throw new Error('Sessão expirada');}return r;}
-let COND_ID='1',DADOS=null,TIPO_ATUAL='',DADOS_FILTRADOS=[],HIST_TIPO='todos',HIST_CACHE=[]
-
+async function fetchAuth(url,opts={}){
+  opts.headers={...(opts.headers||{}),...authHeader()};
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 12000);
+  opts.signal = controller.signal;
+  try{
+    let r=await fetch(url,opts);
+    clearTimeout(timer);
+    if(r.status===401||r.status===403){logout();throw new Error('Sessão expirada');}
+    return r;
+  }catch(e){
+    clearTimeout(timer);
+    if(e.name==='AbortError') throw new Error('API Render acordando, tente de novo em 10s');
+    throw e;
+  }
+}
 // NOVO: PRESETS MODELOS
 const PRESETS = {
   "1_BOX": {P:1,M:0,G:0,fisico:2,util:1,label:"1 Box = Fisico 2 (1 tablet 03 + 1 útil)"},
@@ -183,7 +196,6 @@ const PRESETS = {
   "32_BOXES": {P:19,M:8,G:4,fisico:32,util:31,label:"31 úteis = Fisico 32"}
 };
 
-const API_BASE = localStorage.getItem('SC_API_URL') || 'https://SEU-BACKEND.onrender.com';
 function atualizarPreset(){
   let mod=document.getElementById('nModelo')?.value||'18_BOXES';
   let p=PRESETS[mod];
