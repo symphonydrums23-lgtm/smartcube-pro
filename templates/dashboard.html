@@ -634,6 +634,17 @@ let EX_NOME_CACHE='';
 function excluirCondModal(id,nome){EX_ID=id;EX_NOME_CACHE=nome||'';let m=document.getElementById('modalExcluirCond');let n=document.getElementById('exNome');let s=document.getElementById('exSenha');if(!m){alert('Modal não encontrado');return;}if(n)n.innerText=EX_NOME_CACHE;if(s)s.value='';m.style.display='flex';m.style.zIndex='99999';}
 function fecharExcluirCond(){let m=document.getElementById('modalExcluirCond');if(m)m.style.display='none';EX_ID=null;EX_NOME_CACHE='';}
 async function confirmarExcluirCond(){
+  let s=document.getElementById('exSenha').value.trim();
+  if(!s){alert('Digite a senha ADMIN');return;}
+  if(!EX_ID){alert('ID inválido');return;}
+  if(!confirm('Excluir '+EX_NOME_CACHE+'?')) return;
+  try{
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+EX_ID,{method:'DELETE',headers:authHeadersJson(),body:JSON.stringify({senha:s})});
+    let t=await r.text(); let d={}; try{d=JSON.parse(t)}catch(e){d={detail:t}}
+    if(r.ok){alert('✅ Excluído!');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+    else alert('❌ '+(d.detail||t));
+  }catch(e){alert('Erro:'+e.message)}
+}
 let s=document.getElementById('exSenha').value;
 if(!s){alert('Digite a senha');return;}
 try{
