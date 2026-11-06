@@ -672,6 +672,25 @@ checkTokenValido();
 carregarOperadores();
 document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
 </script>
-  <div id="modalExcluirCond" class="modal"><div class="modal-box" style="max-width:400px"><div class="modal-head"><b>🗑️ Excluir Condomínio</b><button class="btn btn-b" onclick="fecharExcluirCond()">✕</button></div><div style="padding:18px"><div style="background:#FEF2F2;border:1px solid #FECACA;padding:10px;border-radius:8px;font-size:11px;color:#991B1B">⚠️ Vai excluir <b id="exNome">--</b> e todos moradores! Não volta mais.</div><div style="margin-top:12px"><span class="label">Digite a senha ADMIN</span><input id="exSenha" type="password" class="input" placeholder="Senha admin"></div><button class="btn" style="background:#DC2626;color:#fff;width:100%;margin-top:12px;padding:10px" onclick="confirmarExcluirCond()">Confirmar Exclusão</button></div></div></div>
-</body>
+<div id="modalExcluirCond" class="modal" onclick="if(event.target==this) fecharExcluirCond()">
+  <div class="modal-box" style="max-width:400px">
+    <div class="modal-head">
+      <b>🗑️ Excluir Condomínio</b>
+      <button class="btn btn-b" onclick="fecharExcluirCond()">✕</button>
+    </div>
+    <div style="padding:18px">
+      <div style="background:#FEF2F2;border:1px solid #FECACA;padding:10px;border-radius:8px;font-size:11px;color:#991B1B">
+        ⚠️ Vai excluir <b id="exNome">--</b> e todos moradores! Não volta mais.
+      </div>
+      <div style="margin-top:12px">
+        <span class="label">Digite a senha ADMIN</span>
+        <input id="exSenha" type="password" class="input" placeholder="Senha admin">
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <button class="btn btn-g" style="flex:1" onclick="fecharExcluirCond()">Cancelar</button>
+        <button class="btn" style="flex:1;background:#DC2626;color:#fff;font-weight:800" onclick="confirmarExcluirCond()">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+</div></body>
 </html>
