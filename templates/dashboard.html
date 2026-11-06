@@ -630,8 +630,9 @@ function carregarOperadores(){let div=document.getElementById('listaOperadores')
 function delOperador(id){ if(!confirm('Excluir?')) return; OPERADORES_CACHE=OPERADORES_CACHE.filter(o=>o.id!=id); localStorage.setItem('sc_operadores', JSON.stringify(OPERADORES_CACHE)); carregarOperadores(); }
 
 let EX_ID=null;
-function excluirCondModal(id,nome){EX_ID=id;document.getElementById('exNome').innerText=nome;document.getElementById('exSenha').value='';document.getElementById('modalExcluirCond').style.display='flex';}
-function fecharExcluirCond(){document.getElementById('modalExcluirCond').style.display='none';EX_ID=null;}
+let EX_NOME_CACHE='';
+function excluirCondModal(id,nome){EX_ID=id;EX_NOME_CACHE=nome||'';let m=document.getElementById('modalExcluirCond');let n=document.getElementById('exNome');let s=document.getElementById('exSenha');if(!m){alert('Modal não encontrado');return;}if(n)n.innerText=EX_NOME_CACHE;if(s)s.value='';m.style.display='flex';m.style.zIndex='99999';}
+function fecharExcluirCond(){let m=document.getElementById('modalExcluirCond');if(m)m.style.display='none';EX_ID=null;EX_NOME_CACHE='';}
 async function confirmarExcluirCond(){
 let s=document.getElementById('exSenha').value;
 if(!s){alert('Digite a senha');return;}
