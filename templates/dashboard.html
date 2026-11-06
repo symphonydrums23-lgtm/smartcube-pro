@@ -486,8 +486,8 @@ async function carregarCondsCheck(){try{let r=await fetchAuth(API_BASE+'/api/con
 async function gerarKey(){let nome=document.getElementById('parcNome').value||'Parceiro';let checks=[...document.querySelectorAll('#listaCondsCheck input:checked')].map(i=>i.value);try{let r=await fetchAuth(API_BASE+'/api/integracao/gerar',{method:'POST',headers:authHeadersJson(),body:JSON.stringify({nome,condominios_permitidos:checks})});let data=await r.json();document.getElementById('keyOut').style.display='block';document.getElementById('keyOut').innerText=data.api_key||JSON.stringify(data);}catch(e){}}
 function copiarKey(){let el=document.getElementById('keyOut');if(el) {navigator.clipboard.writeText(el.innerText); alert('Copiado');}}
 // --- FIX WHITE LABEL COMPLETO ---
-let wlLogo1Base64 = null;
-let wlLogo2Base64 = null;
+var wlLogo1Base64 = null;
+var wlLogo2Base64 = null;
 
 function wlPreviewLogo(input, prevId) {
   const file = input.files[0];
