@@ -485,10 +485,143 @@ function exportarHistoricoPDF(){gerarPDF();}
 async function carregarCondsCheck(){try{let r=await fetchAuth(API_BASE+'/api/condominios');let conds=await r.json();let div=document.getElementById('listaCondsCheck');if(div)div.innerHTML=conds.filter(c=>String(c.id)!='1').map(c=>`<label class="check-item"><input type="checkbox" value="${c.id}"> ${c.nome} (${c.armario_num||''}) ${c.modelo||''}</label>`).join('');}catch(e){}}
 async function gerarKey(){let nome=document.getElementById('parcNome').value||'Parceiro';let checks=[...document.querySelectorAll('#listaCondsCheck input:checked')].map(i=>i.value);try{let r=await fetchAuth(API_BASE+'/api/integracao/gerar',{method:'POST',headers:authHeadersJson(),body:JSON.stringify({nome,condominios_permitidos:checks})});let data=await r.json();document.getElementById('keyOut').style.display='block';document.getElementById('keyOut').innerText=data.api_key||JSON.stringify(data);}catch(e){}}
 function copiarKey(){let el=document.getElementById('keyOut');if(el) {navigator.clipboard.writeText(el.innerText); alert('Copiado');}}
-function wlSalvar(){}
-function wlCarregar(){}
-function wlPreviewTotem(){}
-function wlPreviewLogo(){}
+// --- FIX WHITE LABEL COMPLETO ---
+let wlLogo1Base64 = null;
+let wlLogo2Base64 = null;
+
+function wlPreviewLogo(input, prevId) {
+  const file = input.files[0];
+  if (!file) return;
+  const isLogo1 = prevId === 'wlPrev1';
+  const maxKB = isLogo1 ? 100 : 30;
+  if (file.size > maxKB * 1024) {
+    alert(`Arquivo muito grande! Máx ${maxKB}kB. Seu arquivo tem ${(file.size/1024).toFixed(1)}kB`);
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    if (isLogo1) wlLogo1Base64 = e.target.result;
+    else wlLogo2Base64 = e.target.result;
+    document.getElementById(prevId).innerHTML = `<img src="${e.target.result}" style="max-width:200px;max-height:80px;border:1px solid #ddd;border-radius:6px;padding:4px;background:#fff"><br><small style="color:#16a34a">✓ Carregado ${(file.size/1024).toFixed(1)}kB</small>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function wlSalvar() {
+  try {
+    const dados = {
+      nome: document.getElementById('wlNome').value.trim(),
+      num_org: document.getElementById('wlNumOrg').value.trim(),
+      descricao: document.getElementById('wlDesc').value.trim(),
+      cor_fundo: document.getElementById('wlCorFundoTxt').value || document.getElementById('wlCorFundo').value,
+      cor_qr: document.getElementById('wlCorQrTxt').value || document.getElementById('wlCorQr').value,
+      cor_botao: document.getElementById('wlCorBotaoTxt').value || document.getElementById('wlCorBotao').value,
+      cor_frase: document.getElementById('wlCorFraseTxt').value || document.getElementById('wlCorFrase').value,
+      cor_sair: document.getElementById('wlCorSairTxt').value || document.getElementById('wlCorSair').value,
+      logo1: wlLogo1Base64,
+      logo2: wlLogo2Base64,
+      salvo_em: new Date().toISOString()
+    };
+    if (!dados.nome) { alert('Nome da marca é obrigatório!'); return; }
+
+    localStorage.setItem('sc_whitelabel', JSON.stringify(dados));
+    
+    fetch(API_BASE + '/api/whitelabel', {
+      method: 'POST',
+      headers: authHeadersJson(),
+      body: JSON.stringify(dados)
+    }).then(r => r.json()).then(d => console.log('API whitelabel OK', d)).catch(e => console.log('API offline, mas salvo local', e));
+
+    alert('✅ Marca salva! LocalStorage + API');
+    wlPreviewTotem();
+  } catch (e) {
+    alert('Erro: ' + e.message);
+  }
+}
+
+function wlCarregar() {
+  try {
+    const raw = localStorage.getItem('sc_whitelabel');
+    if (!raw) {
+      // tenta buscar da API
+      fetchAuth(API_BASE + '/api/whitelabel').then(r => r.json()).then(d => {
+        if (d && d.nome) {
+          document.getElementById('wlNome').value = d.nome || '';
+          localStorage.setItem('sc_whitelabel', JSON.stringify(d));
+          wlCarregar();
+        } else alert('Nenhuma marca salva ainda');
+      }).catch(() => alert('Nenhuma marca salva no navegador'));
+      return;
+    }
+    const d = JSON.parse(raw);
+    document.getElementById('wlNome').value = d.nome || '';
+    document.getElementById('wlNumOrg').value = d.num_org || '';
+    document.getElementById('wlDesc').value = d.descricao || '';
+    document.getElementById('wlCorFundo').value = d.cor_fundo || '#FFFFFF';
+    document.getElementById('wlCorFundoTxt').value = d.cor_fundo || '#FFFFFF';
+    document.getElementById('wlCorQr').value = d.cor_qr || '#000000';
+    document.getElementById('wlCorQrTxt').value = d.cor_qr || '#000000';
+    document.getElementById('wlCorBotao').value = d.cor_botao || '#C10010';
+    document.getElementById('wlCorBotaoTxt').value = d.cor_botao || '#C10010';
+    document.getElementById('wlCorFrase').value = d.cor_frase || '#000000';
+    document.getElementById('wlCorFraseTxt').value = d.cor_frase || '#000000';
+    document.getElementById('wlCorSair').value = d.cor_sair || '#C10010';
+    document.getElementById('wlCorSairTxt').value = d.cor_sair || '#C10010';
+    if (d.logo1) { wlLogo1Base64 = d.logo1; document.getElementById('wlPrev1').innerHTML = `<img src="${d.logo1}" style="max-width:200px;max-height:80px">`; }
+    if (d.logo2) { wlLogo2Base64 = d.logo2; document.getElementById('wlPrev2').innerHTML = `<img src="${d.logo2}" style="max-width:120px;max-height:50px">`; }
+    alert('Dados restaurados!');
+  } catch (e) { alert('Erro ao restaurar: ' + e.message); }
+}
+
+function wlPreviewTotem() {
+  const raw = localStorage.getItem('sc_whitelabel');
+  if (!raw) { alert('Salve a marca primeiro!'); return; }
+  const d = JSON.parse(raw);
+  document.getElementById('wlTotemPreview').style.display = 'block';
+  document.getElementById('wlPrevNome').innerText = d.nome || 'SMART CUBE';
+  document.getElementById('wlPrevNome').style.color = d.cor_frase || '#000';
+  document.getElementById('wlPrevDesc').innerText = d.descricao || '';
+  document.getElementById('wlPrevQr').style.color = d.cor_qr || '#000';
+  document.getElementById('wlPrevQr').style.background = d.cor_fundo || '#fff';
+  document.getElementById('wlPrevBtn').style.background = d.cor_botao || '#C10010';
+  document.getElementById('wlPrevBtnSair').style.background = d.cor_sair || '#C10010';
+  if (d.logo1) { const i = document.getElementById('wlPrevImg1'); i.src = d.logo1; i.style.display = 'block'; }
+  if (d.logo2) { const i2 = document.getElementById('wlPrevImg2'); i2.src = d.logo2; i2.style.display = 'block'; }
+  document.getElementById('wlTotemPreview').style.background = d.cor_fundo || '#fff';
+}
+
+// FIX ARRASTA E SOLTA + CORES
+(function initWhiteLabelFix(){
+  const syncColor = (colorId, txtId) => {
+    const c = document.getElementById(colorId); const t = document.getElementById(txtId);
+    if(!c||!t) return;
+    c.addEventListener('input', () => t.value = c.value);
+    t.addEventListener('input', () => { if(/^#[0-9A-F]{6}$/i.test(t.value)) c.value = t.value; });
+  };
+  syncColor('wlCorFundo','wlCorFundoTxt');
+  syncColor('wlCorQr','wlCorQrTxt');
+  syncColor('wlCorBotao','wlCorBotaoTxt');
+  syncColor('wlCorFrase','wlCorFraseTxt');
+  syncColor('wlCorSair','wlCorSairTxt');
+
+  const setupDrop = (boxIndex) => {
+    const fileId = boxIndex===1?'wlFile1':'wlFile2';
+    const prevId = boxIndex===1?'wlPrev1':'wlPrev2';
+    const container = document.getElementById(fileId).parentElement;
+    ['dragenter','dragover'].forEach(ev=>{
+      container.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); container.style.borderColor='#FF6A00'; container.style.background='#FFF7ED'; });
+    });
+    ['dragleave','drop'].forEach(ev=>{
+      container.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); container.style.borderColor='#CBD5E1'; container.style.background='#F8FAFC'; });
+    });
+    container.addEventListener('drop', e=>{
+      const files = e.dataTransfer.files;
+      if(files.length){ document.getElementById(fileId).files = files; wlPreviewLogo(document.getElementById(fileId), prevId); }
+    });
+  };
+  setupDrop(1); setupDrop(2);
+})();
 let OPERADORES_CACHE = JSON.parse(localStorage.getItem('sc_operadores')||'[]');
 function novoOperador(){document.getElementById('opNome').value='';document.getElementById('opCnpj').value='';document.getElementById('opTel').value='';document.getElementById('opCidade').value='';document.getElementById('modalNovoOperador').style.display='flex';}
 function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
