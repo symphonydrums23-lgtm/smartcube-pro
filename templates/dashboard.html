@@ -629,10 +629,60 @@ function salvarNovoOperador(){let nome=document.getElementById('opNome').value.t
 function carregarOperadores(){let div=document.getElementById('listaOperadores');let divDist=document.getElementById('distribOperador');let sel=document.getElementById('cOperador');if(!div) return;if(OPERADORES_CACHE.length==0){div.innerHTML='<div style="font-size:11px;color:#888">Nenhum operador. Clique em + Novo Operador</div>';} else {div.innerHTML=OPERADORES_CACHE.map(o=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:10px"><div><b>${o.nome}</b><div style="font-size:10px;color:#888">${o.cidade||''} • ${o.tel||''} • ${o.id}</div></div><div style="display:flex;gap:6px"><span style="background:#DCFCE7;color:#166534;padding:2px 8px;border-radius:99px;font-size:10px">${o.criados||0} armários</span><button class="btn btn-g" onclick="delOperador('${o.id}')">X</button></div></div>`).join('');}if(divDist) divDist.innerHTML=OPERADORES_CACHE.map(o=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:11px"><span>${o.nome}</span><span style="font-weight:700">${o.criados||0} armários</span></div>`).join('')||'Sem dados';if(sel){ sel.innerHTML='<option value="">Sem operador (Matriz)</option>'+OPERADORES_CACHE.map(o=>`<option value="${o.id}">${o.nome}</option>`).join(''); }}
 function delOperador(id){ if(!confirm('Excluir?')) return; OPERADORES_CACHE=OPERADORES_CACHE.filter(o=>o.id!=id); localStorage.setItem('sc_operadores', JSON.stringify(OPERADORES_CACHE)); carregarOperadores(); }
 let EX_ID=null;
-let EX_ID=null;
 function excluirCondModal(id,nome){EX_ID=id;document.getElementById('exNome').innerText=nome;document.getElementById('exSenha').value='';document.getElementById('modalExcluirCond').style.display='flex';}
 function fecharExcluirCond(){document.getElementById('modalExcluirCond').style.display='none';EX_ID=null;}
 async function confirmarExcluirCond(){
+let s=document.getElementById('exSenha').value;
+if(!s){alert('Digite a senha');return;}
+try{
+let r=await fetchAuth(API_BASE+'/api/condominios/'+EX_ID,{method:'DELETE',headers:authHeadersJson(),body:JSON.stringify({senha:s})});
+let t=await r.text(); let d={}; try{d=JSON.parse(t)}catch(e){}
+if(r.ok){alert('✅ Excluído!');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+else alert('❌ '+(d.detail||t));
+}catch(e){alert('Erro:'+e.message)}
+}
+    if(r.ok){alert('✅ Excluído!');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+    else alert('❌ '+(d.detail||t));
+  }catch(e){alert('Erro:'+e.message)}
+}
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+EX_ID,{method:'DELETE',headers:authHeadersJson(),body:JSON.stringify({senha:s})});
+    let t=await r.text(); let d={}; try{d=JSON.parse(t)}catch(e){}
+    if(r.ok){alert('✅ Excluído!');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+    else alert('❌ '+(d.detail||t));
+  }catch(e){alert('Erro:'+e.message)}
+}
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+EX_ID,{method:'DELETE',headers:authHeadersJson(),body:JSON.stringify({senha:s})});
+    let t=await r.text(); let d={}; try{d=JSON.parse(t)}catch(e){}
+    if(r.ok){alert('✅ Excluído!');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+    else alert('❌ '+(d.detail||t));
+  }catch(e){alert('Erro:'+e.message)}
+}
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+EX_ID,{method:'DELETE',headers:authHeadersJson(),body:JSON.stringify({senha:s})});
+    let t=await r.text(); let d={}; try{d=JSON.parse(t)}catch(e){}
+    if(r.ok){alert('✅ Excluído!');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+    else alert('❌ '+(d.detail||t));
+  }catch(e){alert('Erro:'+e.message)}
+}
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+EX_ID,{method:'DELETE',headers:authHeadersJson(),body:JSON.stringify({senha:s})});
+    let t=await r.text(); let d={}; try{d=JSON.parse(t)}catch(e){}
+    if(r.ok){alert('✅ Excluído!');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+    else alert('❌ '+(d.detail||t));
+  }catch(e){alert('Erro:'+e.message)}
+}
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+EX_ID,{method:'DELETE',headers:authHeadersJson(),body:JSON.stringify({senha:s})});
+    let t=await r.text(); let d={}; try{d=JSON.parse(t)}catch(e){}
+    if(r.ok){alert('✅ Excluído!');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+    else alert('❌ '+(d.detail||t));
+  }catch(e){alert('Erro:'+e.message)}
+}
+  if(!s){alert('Digite a senha');return;}
+  try{
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+EX_ID,{method:'DELETE',headers:authHeadersJson(),body:JSON.stringify({senha:s})});
+    let t=await r.text(); let d={}; try{d=JSON.parse(t)}catch(e){}
+    if(r.ok){alert('✅ Excluído!');fecharExcluirCond();carregarConds();carregarCondsSelect();}
+    else alert('❌ '+(d.detail||t));
+  }catch(e){alert('Erro:'+e.message)}
+}
   let s=document.getElementById('exSenha').value;
   if(!s){alert('Digite a senha');return;}
   try{
