@@ -692,57 +692,67 @@ carregarDados();
 checkTokenValido();
 carregarOperadores();
 
-// === FIX FRANQUIA v2 - FUNCIONA COM SEU MODAL ===
+// === FIX FRANQUIA v3 DEFINITIVO - NÃO TRAVA MAIS ===
 async function salvarOperador(){
-  // pega o modal (seu modal da foto)
-  const modal = document.getElementById('modalOperador') || document.querySelector('[id*=Operador]') || document.body;
-  const inputs = modal.querySelectorAll('input');
-  // seu modal tem 4 inputs na ordem: Nome, CNPJ/CPF, Telefone, Cidade
-  const nome = inputs[0]?.value || "";
-  const cnpj = inputs[1]?.value || "";
-  const telefone = inputs[2]?.value || "";
-  const cidade = inputs[3]?.value || "";
-  
-  console.log('Salvando:', {nome, cnpj, telefone, cidade});
-  if(!nome || nome.trim().length < 2) return alert('Nome do operador obrigatório');
-  
   try{
-    let r = await fetch(API_BASE+'/api/operadores',{
-      method:'POST',
-      headers:authHeadersJson(),
-      body:JSON.stringify({nome: nome.trim(), cnpj, telefone, cidade})
+    const modal = document.querySelector('#modalOperador') || document.querySelector('.modal') || document.body;
+    const inputs = document.querySelectorAll('#modalOperador input, .modal input, input[placeholder]');
+    
+    // Pega na ordem que aparece no seu print: Nome, CNPJ/CPF, Telefone, Cidade
+    let nome="", cnpj="", telefone="", cidade="";
+    const todosInputs = Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null); // só visíveis
+    
+    if(todosInputs.length >= 4){
+      nome = todosInputs[todosInputs.length-4]?.value || "";
+      cnpj = todosInputs[todosInputs.length-3]?.value || "";
+      telefone = todosInputs[todosInputs.length-2]?.value || "";
+      cidade = todosInputs[todosInputs.length-1]?.value || "";
+    } else {
+      nome = todosInputs[0]?.value || "";
+    }
+
+    if(!nome || nome.trim()=="") { alert('Digite o nome do operador'); return; }
+    
+    const token = localStorage.getItem('sc_token') || localStorage.getItem('token') || "";
+    if(!token) { alert('ERRO: Você não está logado. Faça login de novo.'); return; }
+
+    console.log('Enviando:', {nome, cnpj, telefone, cidade});
+    
+    const resp = await fetch('/api/operadores', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({nome: nome.trim(), cnpj, telefone, cidade})
     });
-    let d = await r.json().catch(()=>({}));
-    if(r.ok){
-      alert('✅ Operador '+d.operador.nome+' criado!');
-      if(typeof carregarCondsSelect === 'function') carregarCondsSelect();
-      // fecha modal
-      const m = document.getElementById('modalOperador'); if(m) m.style.display='none';
+    
+    const texto = await resp.text();
+    console.log('Resposta:', resp.status, texto);
+    
+    if(resp.ok){
+      alert('✅ Operador '+nome+' criado com sucesso!');
       location.reload();
     } else {
-      alert('Erro: '+(d.detail||JSON.stringify(d)));
+      alert('Erro do servidor ('+resp.status+'): '+texto);
     }
-  }catch(e){ alert('Erro: '+e.message); console.error(e); }
+  } catch(err){
+    alert('Erro JS: '+err.message);
+    console.error(err);
+  }
 }
 
-async function carregarOperadores(){
-  try{
-    let r = await fetch(API_BASE+'/api/operadores',{headers:authHeaders()});
-    if(r.ok){ let lista = await r.json(); console.log('Franquias:', lista); }
-  }catch(e){}
-}
-
-// Força o botão Salvar a chamar a função certa
+// Corrige o botão automaticamente
 setTimeout(()=>{
-  const btns = document.querySelectorAll('button');
-  btns.forEach(b=>{
-    if(b.textContent && b.textContent.toLowerCase().includes('salvar operador')){
-      b.onclick = (e)=>{ e.preventDefault(); salvarOperador(); };
-      console.log('Botão Salvar Operador corrigido');
+  document.querySelectorAll('button').forEach(b=>{
+    if(b.textContent.toLowerCase().includes('salvar operador')){
+      b.type = 'button';
+      b.onclick = (e)=>{ e.preventDefault(); salvarOperador(); return false; };
+      console.log('Botão corrigido!');
     }
   });
-}, 1000);
-// === FIM FIX V2 ===
+}, 500);
+// === FIM V3 ===
 
 document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
 document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
