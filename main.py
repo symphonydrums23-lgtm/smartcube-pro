@@ -614,22 +614,24 @@ def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: 
     raise HTTPException(404)
 
 @app.delete("/api/condominios")
-def deletar_cond(...):
-    ...
-    return {"ok":True}
+def deletar_cond(id: str = Query(...), request: Request = None, token: str = Depends(requer_auth)):
+    conds = load_json(ARQ_CONDS, [])
+    conds = [c for c in conds if str(c["id"])!=str(id)]
+    save_json(ARQ_CONDS, conds)
+    registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido id {id} via DELETE antigo", condominio_id=id, request=request)
+    return {"ok": True}
 
 @app.delete("/api/condominios/{cond_id}")
 def deletar_cond_path(cond_id: str, request: Request = None, token: str = Depends(requer_auth)):
     conds = load_json(ARQ_CONDS, [])
-    cond_alvo = next((c for c in conds if str(c["id"])==str(cond_id)), None)
+    cond_alvo = next((c for c in conds if str(c["id"]) == str(cond_id)), None)
     if not cond_alvo:
-        raise HTTPException(404, "Condomínio não encontrado")
-    conds = [c for c in conds if str(c["id"])!=str(cond_id)]
+        raise HTTPException(status_code=404, detail="Condomínio não encontrado")
+    conds = [c for c in conds if str(c["id"]) != str(cond_id)]
     save_json(ARQ_CONDS, conds)
     registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido {cond_alvo.get('nome')} {cond_alvo.get('codigo_armario','')} via DELETE", condominio_id=cond_id, request=request)
     return {"ok": True}
 
-# linha antiga 629
 def validar_senha_admin(senha_fornecida: str) -> bool:
     if not senha_fornecida: return False
     if senha_fornecida == ADMIN_PASS: return True
@@ -644,10 +646,10 @@ def excluir_cond_com_senha(cond_id: str, payload: dict, request: Request, token:
     if not validar_senha_admin(senha):
         raise HTTPException(status_code=401, detail="Senha de admin incorreta. Exclusão não autorizada.")
     conds = load_json(ARQ_CONDS, [])
-    cond_alvo = next((c for c in conds if str(c["id"])==str(cond_id)), None)
+    cond_alvo = next((c for c in conds if str(c["id"]) == str(cond_id)), None)
     if not cond_alvo:
-        raise HTTPException(404, "Condomínio não encontrado")
-    conds = [c for c in conds if str(c["id"])!=str(cond_id)]
+        raise HTTPException(status_code=404, detail="Condomínio não encontrado")
+    conds = [c for c in conds if str(c["id"]) != str(cond_id)]
     save_json(ARQ_CONDS, conds)
     registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido {cond_alvo.get('nome')} {cond_alvo.get('codigo_armario','')} com senha admin", condominio_id=cond_id, request=request)
     return {"ok": True, "msg": f"Condomínio {cond_alvo.get('nome')} excluído"}
