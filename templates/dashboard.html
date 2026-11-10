@@ -692,19 +692,37 @@ carregarDados();
 checkTokenValido();
 carregarOperadores();
 
-// === COLA AQUI - FIX FRANQUIA ===
+// === FIX FRANQUIA v2 - FUNCIONA COM SEU MODAL ===
 async function salvarOperador(){
-  const nome = document.getElementById('opNome')?.value || document.querySelector('#modalOperador input')?.value;
-  const cnpj = document.getElementById('opCnpj')?.value || "";
-  const telefone = document.getElementById('opTelefone')?.value || "";
-  const cidade = document.getElementById('opCidade')?.value || "";
-  if(!nome) return alert('Nome do operador obrigatório');
+  // pega o modal (seu modal da foto)
+  const modal = document.getElementById('modalOperador') || document.querySelector('[id*=Operador]') || document.body;
+  const inputs = modal.querySelectorAll('input');
+  // seu modal tem 4 inputs na ordem: Nome, CNPJ/CPF, Telefone, Cidade
+  const nome = inputs[0]?.value || "";
+  const cnpj = inputs[1]?.value || "";
+  const telefone = inputs[2]?.value || "";
+  const cidade = inputs[3]?.value || "";
+  
+  console.log('Salvando:', {nome, cnpj, telefone, cidade});
+  if(!nome || nome.trim().length < 2) return alert('Nome do operador obrigatório');
+  
   try{
-    let r = await fetch(API_BASE+'/api/operadores',{method:'POST',headers:authHeadersJson(),body:JSON.stringify({nome,cnpj,telefone,cidade})});
-    let d = await r.json();
-    if(r.ok){alert('✅ Operador '+d.operador.nome+' criado!'); location.reload();}
-    else{alert('Erro: '+(d.detail||JSON.stringify(d)));}
-  }catch(e){alert('Erro: '+e.message)}
+    let r = await fetch(API_BASE+'/api/operadores',{
+      method:'POST',
+      headers:authHeadersJson(),
+      body:JSON.stringify({nome: nome.trim(), cnpj, telefone, cidade})
+    });
+    let d = await r.json().catch(()=>({}));
+    if(r.ok){
+      alert('✅ Operador '+d.operador.nome+' criado!');
+      if(typeof carregarCondsSelect === 'function') carregarCondsSelect();
+      // fecha modal
+      const m = document.getElementById('modalOperador'); if(m) m.style.display='none';
+      location.reload();
+    } else {
+      alert('Erro: '+(d.detail||JSON.stringify(d)));
+    }
+  }catch(e){ alert('Erro: '+e.message); console.error(e); }
 }
 
 async function carregarOperadores(){
@@ -713,7 +731,18 @@ async function carregarOperadores(){
     if(r.ok){ let lista = await r.json(); console.log('Franquias:', lista); }
   }catch(e){}
 }
-// === FIM DO FIX ===
+
+// Força o botão Salvar a chamar a função certa
+setTimeout(()=>{
+  const btns = document.querySelectorAll('button');
+  btns.forEach(b=>{
+    if(b.textContent && b.textContent.toLowerCase().includes('salvar operador')){
+      b.onclick = (e)=>{ e.preventDefault(); salvarOperador(); };
+      console.log('Botão Salvar Operador corrigido');
+    }
+  });
+}, 1000);
+// === FIM FIX V2 ===
 
 document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
 document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
