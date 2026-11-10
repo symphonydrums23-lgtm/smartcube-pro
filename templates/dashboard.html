@@ -691,6 +691,31 @@ carregarCondsSelect();
 carregarDados();
 checkTokenValido();
 carregarOperadores();
+
+// === COLA AQUI - FIX FRANQUIA ===
+async function salvarOperador(){
+  const nome = document.getElementById('opNome')?.value || document.querySelector('#modalOperador input')?.value;
+  const cnpj = document.getElementById('opCnpj')?.value || "";
+  const telefone = document.getElementById('opTelefone')?.value || "";
+  const cidade = document.getElementById('opCidade')?.value || "";
+  if(!nome) return alert('Nome do operador obrigatório');
+  try{
+    let r = await fetch(API_BASE+'/api/operadores',{method:'POST',headers:authHeadersJson(),body:JSON.stringify({nome,cnpj,telefone,cidade})});
+    let d = await r.json();
+    if(r.ok){alert('✅ Operador '+d.operador.nome+' criado!'); location.reload();}
+    else{alert('Erro: '+(d.detail||JSON.stringify(d)));}
+  }catch(e){alert('Erro: '+e.message)}
+}
+
+async function carregarOperadores(){
+  try{
+    let r = await fetch(API_BASE+'/api/operadores',{headers:authHeaders()});
+    if(r.ok){ let lista = await r.json(); console.log('Franquias:', lista); }
+  }catch(e){}
+}
+// === FIM DO FIX ===
+
+document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
 document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
 </script>
 <script>
