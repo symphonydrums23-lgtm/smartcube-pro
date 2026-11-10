@@ -90,7 +90,7 @@ def save_json(path, data):
 ARQ_TOKENS = "tokens.json"; ARQ_DADOS = "dashboard_dados.json"; ARQ_KEYS = "api_keys.json"
 ARQ_AUDIT = "auditoria.json"; ARQ_CONDS = "condominios.json"; ARQ_MORS = "moradores.json"
 ARQ_APP_USERS = "app_users.json"; ARQ_CACHE_IA = "ia_cache.json"; ARQ_BLOQUEIOS = "ia_bloqueios.json"
-
+ARQ_FRANQUIAS = "franquias.json"
 def no_cache_html(path):
     if os.path.exists(path):
         with open(path, 'r', encoding='utf-8') as f: content = f.read()
@@ -697,7 +697,36 @@ def listar_usuarios(condominio: str = Query(None), token: str = Depends(requer_a
         users = [u for u in users if str(u.get("condominio"))==str(condominio)]
     return users
 # === FIM FIX OPERADOR ===
+# === FIX v5.8.4 - FRANQUIAS (modal da sua foto) ===
+@app.get("/api/operadores")
+def listar_operadores(token: str = Depends(requer_auth)):
+    return load_json(ARQ_FRANQUIAS, [])
 
+@app.post("/api/operadores")
+def criar_franquia(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
+    nome = str(payload.get("nome") or "").strip()
+    if not nome:
+        raise HTTPException(400, "Nome do operador obrigatório")
+    franqs = load_json(ARQ_FRANQUIAS, [])
+    novo = {
+        "id": str(uuid.uuid4())[:8],
+        "nome": nome,
+        "cnpj_cpf": payload.get("cnpj") or payload.get("cnpj_cpf") or "",
+        "telefone": payload.get("telefone") or "",
+        "cidade": payload.get("cidade") or "",
+        "criado_em": datetime.now().isoformat()
+    }
+    franqs.append(novo)
+    save_json(ARQ_FRANQUIAS, franqs)
+    registrar_auditoria("CRIOU_FRANQUIA", detalhes=f"{nome} {novo['cidade']}", request=request)
+    return {"ok": True, "operador": novo}
+
+@app.delete("/api/operadores/{op_id}")
+def excluir_operador(op_id: str, request: Request = None, token: str = Depends(requer_auth)):
+    franqs = load_json(ARQ_FRANQUIAS, [])
+    franqs = [f for f in franqs if str(f["id"]) != str(op_id)]
+    save_json(ARQ_FRANQUIAS, franqs)
+    return {"ok": True}
 @app.get("/api/moradores")
 def listar_mors(condominio: str = Query("1"), token: str = Depends(requer_auth)):
     mors = load_json(ARQ_MORS, [])
