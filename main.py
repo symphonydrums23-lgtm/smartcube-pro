@@ -654,6 +654,50 @@ def excluir_cond_com_senha(cond_id: str, payload: dict, request: Request, token:
     registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido {cond_alvo.get('nome')} {cond_alvo.get('codigo_armario','')} com senha admin", condominio_id=cond_id, request=request)
     return {"ok": True, "msg": f"Condomínio {cond_alvo.get('nome')} excluído"}
 
+# === FIX v5.8.3 - OPERADOR - COLADO NO LUGAR CERTO ===
+@app.post("/api/usuarios/operador")
+def criar_operador(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
+    condominio = str(payload.get("condominio") or payload.get("condominio_id") or "").strip()
+    bloco = str(payload.get("bloco") or "").strip()
+    apto = str(payload.get("apto") or payload.get("apartamento") or "").strip()
+    senha = str(payload.get("senha") or "").strip()
+    nome = str(payload.get("nome") or f"Operador {bloco}/{apto}").strip()
+
+    if not condominio or not bloco or not apto or not senha:
+        raise HTTPException(status_code=400, detail="Condomínio, bloco, apto e senha são obrigatórios")
+
+    users = load_json(ARQ_APP_USERS, [])
+    existente = next((u for u in users if str(u.get("condominio"))==condominio and str(u.get("bloco")).lower()==bloco.lower() and str(u.get("apto")).lower()==apto.lower()), None)
+    
+    novo_user = {
+        "id": existente["id"] if existente else str(uuid.uuid4())[:8],
+        "condominio": condominio,
+        "bloco": bloco,
+        "apto": apto,
+        "nome": nome,
+        "role": "operador",
+        "senha_hash": hash_senha(senha),
+        "criado_em": existente.get("criado_em") if existente else datetime.now().isoformat(),
+        "atualizado_em": datetime.now().isoformat()
+    }
+    
+    if existente:
+        users = [u for u in users if not (str(u.get("condominio"))==condominio and str(u.get("bloco")).lower()==bloco.lower() and str(u.get("apto")).lower()==apto.lower())]
+    
+    users.append(novo_user)
+    save_json(ARQ_APP_USERS, users)
+    
+    registrar_auditoria("CRIOU_OPERADOR", detalhes=f"Operador {nome} {bloco}/{apto} Cond {condominio}", condominio_id=condominio, request=request)
+    return {"ok": True, "usuario": novo_user}
+
+@app.get("/api/usuarios")
+def listar_usuarios(condominio: str = Query(None), token: str = Depends(requer_auth)):
+    users = load_json(ARQ_APP_USERS, [])
+    if condominio:
+        users = [u for u in users if str(u.get("condominio"))==str(condominio)]
+    return users
+# === FIM FIX OPERADOR ===
+
 @app.get("/api/moradores")
 def listar_mors(condominio: str = Query("1"), token: str = Depends(requer_auth)):
     mors = load_json(ARQ_MORS, [])
