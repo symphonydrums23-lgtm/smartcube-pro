@@ -696,7 +696,8 @@ document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPrese
 <script>
 async function excluirCondModal(id,nome){
   if(!confirm('🗑️ EXCLUIR CONDOMÍNIO\n\n'+nome+'\n\nTem certeza?')) return;
-  if(prompt('Digite EXCLUIR para confirmar:')!=='EXCLUIR'){alert('Cancelado');return;}
+  let senha = prompt('Digite a SENHA ADMIN para confirmar:');
+if(!senha){alert('Cancelado');return;}
   try{
     let r=await fetchAuth(API_BASE+'/api/condominios/'+id,{method:'DELETE'});
     if(r.ok){alert('✅ Excluído');location.reload();}
