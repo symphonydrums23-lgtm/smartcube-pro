@@ -614,18 +614,22 @@ def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: 
     raise HTTPException(404)
 
 @app.delete("/api/condominios")
-def deletar_cond(id: str = Query(...), senha_admin: str = Query(None), request: Request = None, token: str = Depends(requer_auth)):
-    if senha_admin:
-        if not validar_senha_admin(senha_admin):
-            raise HTTPException(status_code=401, detail="Senha de admin incorreta")
-    conds = load_json(ARQ_CONDS, [])
-    cond_alvo = next((c for c in conds if str(c["id"])==str(id)), None)
-    conds=[c for c in conds if str(c["id"])!=str(id)]
-    save_json(ARQ_CONDS, conds)
-    if cond_alvo:
-        registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido {cond_alvo.get('nome')}", condominio_id=id, request=request)
+def deletar_cond(...):
+    ...
     return {"ok":True}
 
+@app.delete("/api/condominios/{cond_id}")
+def deletar_cond_path(cond_id: str, request: Request = None, token: str = Depends(requer_auth)):
+    conds = load_json(ARQ_CONDS, [])
+    cond_alvo = next((c for c in conds if str(c["id"])==str(cond_id)), None)
+    if not cond_alvo:
+        raise HTTPException(404, "Condomínio não encontrado")
+    conds = [c for c in conds if str(c["id"])!=str(cond_id)]
+    save_json(ARQ_CONDS, conds)
+    registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido {cond_alvo.get('nome')} {cond_alvo.get('codigo_armario','')} via DELETE", condominio_id=cond_id, request=request)
+    return {"ok": True}
+
+# linha antiga 629
 def validar_senha_admin(senha_fornecida: str) -> bool:
     if not senha_fornecida: return False
     if senha_fornecida == ADMIN_PASS: return True
