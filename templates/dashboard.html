@@ -692,34 +692,47 @@ carregarDados();
 checkTokenValido();
 carregarOperadores();
 
-<script>
-// === FIX FRANQUIA v3 DEFINITIVO - CORRIGIDO, NÃO TRAVA ===
+// === FIX FRANQUIA v3 DEFINITIVO - NÃO TRAVA MAIS ===
 async function salvarOperador(){
   try{
-    const todosInputs = Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null);
+    const modal = document.querySelector('#modalOperador') || document.querySelector('.modal') || document.body;
+    const inputs = document.querySelectorAll('#modalOperador input, .modal input, input[placeholder]');
+    
+    // Pega na ordem que aparece no seu print: Nome, CNPJ/CPF, Telefone, Cidade
     let nome="", cnpj="", telefone="", cidade="";
+    const todosInputs = Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null); // só visíveis
+    
     if(todosInputs.length >= 4){
       nome = todosInputs[todosInputs.length-4]?.value || "";
       cnpj = todosInputs[todosInputs.length-3]?.value || "";
       telefone = todosInputs[todosInputs.length-2]?.value || "";
       cidade = todosInputs[todosInputs.length-1]?.value || "";
     } else {
-      nome = document.getElementById('opNome')?.value || todosInputs[0]?.value || "";
+      nome = todosInputs[0]?.value || "";
     }
+
     if(!nome || nome.trim()=="") { alert('Digite o nome do operador'); return; }
+    
     const token = localStorage.getItem('sc_token') || localStorage.getItem('token') || "";
+    if(!token) { alert('ERRO: Você não está logado. Faça login de novo.'); return; }
+
     console.log('Enviando:', {nome, cnpj, telefone, cidade});
-    const resp = await fetch(API_BASE+'/api/operadores', {
+    
+    const resp = await fetch('/api/operadores', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
       body: JSON.stringify({nome: nome.trim(), cnpj, telefone, cidade})
     });
+    
     const texto = await resp.text();
     console.log('Resposta:', resp.status, texto);
+    
     if(resp.ok){
       alert('✅ Operador '+nome+' criado com sucesso!');
-      fecharNovoOperador();
-      carregarOperadores();
+      location.reload();
     } else {
       alert('Erro do servidor ('+resp.status+'): '+texto);
     }
@@ -729,31 +742,26 @@ async function salvarOperador(){
   }
 }
 
-window.salvarNovoOperador = salvarOperador;
-
-function novoOperador(){ 
-  let m=document.getElementById('modalNovoOperador');
-  if(m) m.style.display='flex';
-}
-function fecharNovoOperador(){ 
-  let m=document.getElementById('modalNovoOperador');
-  if(m) m.style.display='none';
-}
-
-async function carregarOperadores(){
-  try{
-    let r = await fetchAuth(API_BASE+'/api/operadores');
-    let ops = await r.json();
-    let div = document.getElementById('listaOperadores');
-    if(div){
-      if(!ops || ops.length===0) div.innerHTML='Nenhum operador';
-      else div.innerHTML = ops.map(o=>`<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee"><span><b>${o.nome}</b> - ${o.cidade||''}</span><span style="font-size:10px">${o.cnpj||o.cnpj_cpf||''}</span></div>`).join('');
+// Corrige o botão automaticamente
+setTimeout(()=>{
+  document.querySelectorAll('button').forEach(b=>{
+    if(b.textContent.toLowerCase().includes('salvar operador')){
+      b.type = 'button';
+      b.onclick = (e)=>{ e.preventDefault(); salvarOperador(); return false; };
+      console.log('Botão corrigido!');
     }
-  }catch(e){ console.log(e); }
-}
+  });
+}, 500);
+// === FIM V3 ===
 
+document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
+document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
+</script>
+<script>
 async function excluirCondModal(id,nome){
   if(!confirm('🗑️ EXCLUIR CONDOMÍNIO\n\n'+nome+'\n\nTem certeza?')) return;
+  let senha = prompt('Digite a SENHA ADMIN para confirmar:');
+if(!senha){alert('Cancelado');return;}
   try{
     let r=await fetchAuth(API_BASE+'/api/condominios/'+id,{method:'DELETE'});
     if(r.ok){alert('✅ Excluído');location.reload();}
@@ -762,17 +770,6 @@ async function excluirCondModal(id,nome){
 }
 function fecharExcluirCond(){}
 function confirmarExcluirCond(){}
-
-document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
-
-setTimeout(()=>{
-  document.querySelectorAll('button').forEach(b=>{
-    if(b.textContent.toLowerCase().includes('salvar operador')){
-      b.type = 'button';
-      b.onclick = (e)=>{ e.preventDefault(); salvarOperador(); return false; };
-    }
-  });
-}, 500);
 </script>
 </body>
 </html>
