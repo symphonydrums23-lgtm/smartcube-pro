@@ -576,10 +576,20 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
         "codigo_armario": codigo_armario,
         "armario_numero": codigo_armario,
         "armario_id": codigo_armario,
-        "status":"ativo",
+        "status": "ativo",
         "criado_em": now_brt().isoformat(),
-        "label_dupla": label_dupla
+        "label_dupla": label_dupla,
+        "valor_mensal": payload.get("valor_mensal",""),
+        "valor_instalacao": payload.get("valor_instalacao",""),
+        "periodo": payload.get("periodo","12 meses"),
+        "data_inicio": payload.get("data_inicio",""),
+        "cnpj": payload.get("cnpj",""),
+        "endereco": payload.get("endereco",""),
     }
+
+    conds.append(novo)
+    save_json(ARQ_CONDS, conds)
+    return novo
     conds.append(novo); save_json(ARQ_CONDS, conds)
     registrar_auditoria("CRIOU_CONDOMINIO", detalhes=f"{novo['nome']} - {codigo_armario} Blocos:{blocos}", condominio_id=novo["id"], request=request)
     return novo
