@@ -771,5 +771,29 @@ if(!senha){alert('Cancelado');return;}
 function fecharExcluirCond(){}
 function confirmarExcluirCond(){}
 </script>
+<script>
+// FIX OPERADOR SEGURO - NAO MEXA EM OUTROS BOTOES
+function novoOperador(){ document.getElementById('modalNovoOperador').style.display='flex'; }
+function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
+
+async function salvarOperador(){
+  let nome = document.getElementById('opNome')?.value?.trim() || '';
+  if(!nome){ alert('Digite o nome'); return; }
+  let token = localStorage.getItem('sc_token') || '';
+  let dados = {
+    nome: nome,
+    cnpj: document.getElementById('opCnpj')?.value || '',
+    telefone: document.getElementById('opTel')?.value || '',
+    cidade: document.getElementById('opCidade')?.value || ''
+  };
+  try{
+    let r = await fetch(API_BASE+'/api/operadores',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(dados)});
+    let t = await r.text();
+    if(r.ok){ alert('✅ Operador '+nome+' criado!'); fecharNovoOperador(); location.reload(); }
+    else alert('Erro '+r.status+': '+t);
+  }catch(e){ alert(e.message); }
+}
+window.salvarNovoOperador = salvarOperador;
+</script>
 </body>
 </html>
