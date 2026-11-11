@@ -9,6 +9,22 @@ from collections import defaultdict
 from dotenv import load_dotenv
 load_dotenv()
 
+import pytz
+BRT = pytz.timezone('America/Sao_Paulo')
+def now_brt():
+    return datetime.now(BRT)
+def now_brt_str(fmt="%d/%m/%Y %H:%M:%S"):
+    return now_brt().strftime(fmt)
+
+# === NOVOS ARQUIVOS - ITENS 11,12,19,20,24-30 ===
+ARQ_COMERCIAL = "comercial.json"
+ARQ_CONTRATOS = "contratos.json"
+ARQ_CHAMADOS = "chamados.json"
+ARQ_RECLAMACOES = "reclamacoes.json"
+ARQ_VENDEDORES = "vendedores.json"
+ARQ_WHITELABEL = "whitelabel.json"
+ARQ_TABLET_STATUS = "tablet_status.json"
+
 SECRET_JWT = os.getenv("SECRET_JWT")
 if not SECRET_JWT or len(SECRET_JWT) < 32:
     raise RuntimeError("SECRET_JWT ausente ou fraco (<32 chars). Defina no .env")
