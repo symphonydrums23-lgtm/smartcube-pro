@@ -693,7 +693,7 @@ checkTokenValido();
 carregarOperadores();
 
 <script>
-// === FIX FRANQUIA FINAL - V6 LIMPO E FUNCIONANDO ===
+// === FIX FRANQUIA v3 DEFINITIVO - CORRIGIDO, NÃO TRAVA ===
 async function salvarOperador(){
   try{
     const todosInputs = Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null);
@@ -704,23 +704,29 @@ async function salvarOperador(){
       telefone = todosInputs[todosInputs.length-2]?.value || "";
       cidade = todosInputs[todosInputs.length-1]?.value || "";
     } else {
-      nome = todosInputs[0]?.value || "";
+      nome = document.getElementById('opNome')?.value || todosInputs[0]?.value || "";
     }
-    if(!nome.trim()){ alert('Digite o nome'); return; }
-    const token = localStorage.getItem('sc_token') || "";
+    if(!nome || nome.trim()=="") { alert('Digite o nome do operador'); return; }
+    const token = localStorage.getItem('sc_token') || localStorage.getItem('token') || "";
+    console.log('Enviando:', {nome, cnpj, telefone, cidade});
     const resp = await fetch(API_BASE+'/api/operadores', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({nome: nome.trim(), cnpj, telefone, cidade})
     });
     const texto = await resp.text();
+    console.log('Resposta:', resp.status, texto);
     if(resp.ok){
-      alert('✅ Operador '+nome+' criado!');
-      location.reload();
+      alert('✅ Operador '+nome+' criado com sucesso!');
+      fecharNovoOperador();
+      carregarOperadores();
     } else {
-      alert('Erro ('+resp.status+'): '+texto);
+      alert('Erro do servidor ('+resp.status+'): '+texto);
     }
-  }catch(err){ alert('Erro: '+err.message); }
+  } catch(err){
+    alert('Erro JS: '+err.message);
+    console.error(err);
+  }
 }
 
 window.salvarNovoOperador = salvarOperador;
@@ -740,28 +746,33 @@ async function carregarOperadores(){
     let ops = await r.json();
     let div = document.getElementById('listaOperadores');
     if(div){
-      if(ops.length===0) div.innerHTML='Nenhum operador';
-      else div.innerHTML = ops.map(o=>`<div style="padding:8px;border-bottom:1px solid #eee"><b>${o.nome}</b> - ${o.cidade||''}</div>`).join('');
+      if(!ops || ops.length===0) div.innerHTML='Nenhum operador';
+      else div.innerHTML = ops.map(o=>`<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee"><span><b>${o.nome}</b> - ${o.cidade||''}</span><span style="font-size:10px">${o.cnpj||o.cnpj_cpf||''}</span></div>`).join('');
     }
   }catch(e){ console.log(e); }
 }
 
 async function excluirCondModal(id,nome){
-  if(!confirm('Excluir '+nome+'?')) return;
-  let r=await fetchAuth(API_BASE+'/api/condominios/'+id,{method:'DELETE'});
-  if(r.ok) location.reload();
+  if(!confirm('🗑️ EXCLUIR CONDOMÍNIO\n\n'+nome+'\n\nTem certeza?')) return;
+  try{
+    let r=await fetchAuth(API_BASE+'/api/condominios/'+id,{method:'DELETE'});
+    if(r.ok){alert('✅ Excluído');location.reload();}
+    else{let d=await r.json().catch(()=>({}));alert('Erro: '+(d.detail||r.status));}
+  }catch(e){alert(e.message);}
 }
+function fecharExcluirCond(){}
+function confirmarExcluirCond(){}
+
+document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
 
 setTimeout(()=>{
   document.querySelectorAll('button').forEach(b=>{
     if(b.textContent.toLowerCase().includes('salvar operador')){
-      b.type='button';
-      b.onclick=(e)=>{ e.preventDefault(); salvarOperador(); return false; };
+      b.type = 'button';
+      b.onclick = (e)=>{ e.preventDefault(); salvarOperador(); return false; };
     }
   });
 }, 500);
-
-document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
 </script>
 </body>
 </html>
