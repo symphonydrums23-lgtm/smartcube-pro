@@ -520,25 +520,20 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
     qtd_m = int(payload.get("qtd_m", payload.get("M", preset["M"])))
     qtd_g = int(payload.get("qtd_g", payload.get("G", preset["G"])))
     dupla_face = bool(payload.get("dupla_face", False))
-    # === NOVO - ITEM 1 E 4 - BLOCOS ===
+
+    # === ITEM 1 - BLOCOS - VERSÃO LIMPA ===
     tem_blocos = bool(payload.get("tem_blocos", False))
-    qtd_blocos = int(payload.get("qtd_blocos", 0))
+    qtd_blocos = int(payload.get("qtd_blocos", 0) or 0)
     blocos_raw = payload.get("blocos", payload.get("bloco_lista", ""))
-    if isinstance(blocos_raw, str):
-        blocos = [b.strip() for b in blocos_raw.split(",") if b.strip()] if blocos_raw else []
+    blocos = []
+    if isinstance(blocos_raw, str) and blocos_raw.strip():
+        blocos = [b.strip() for b in blocos_raw.split(",") if b.strip()]
     elif isinstance(blocos_raw, list):
-        blocos = blocos_raw
-    else:
-        blocos = []
+        blocos = [str(b).strip() for b in blocos_raw if str(b).strip()]
+    
     if tem_blocos and qtd_blocos and not blocos:
-        blocos = [chr(65+i) for i in range(qtd_blocos)]  # Gera A,B,C...
-    blocos_raw = payload.get("blocos", payload.get("bloco_lista", ""))
-    if isinstance(blocos_raw, str):
-        blocos = [b.strip() for b in blocos_raw.split(",") if b.strip()] if blocos_raw else []
-    elif isinstance(blocos_raw, list):
-        blocos = blocos_raw
-    else:
-        blocos = []
+        blocos = [chr(65+i) for i in range(qtd_blocos)]  # A,B,C...
+
     total_fisico_base = int(payload.get("total_fisico", preset["fisico"]))
     G_boxes = payload.get("G_boxes", preset["G_boxes"])
 
@@ -549,22 +544,17 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
         qtd_m_lado = qtd_m // 2
         qtd_g_lado = qtd_g // 2
         resto = (qtd_p+qtd_m+qtd_g) - (qtd_p_lado+qtd_m_lado+qtd_g_lado)*2
-        if resto>0:
-            qtd_p_lado += resto
+        if resto>0: qtd_p_lado += resto
         total_util_lado = qtd_p_lado+qtd_m_lado+qtd_g_lado
+        label_dupla = f"FRENTE: {total_fisico//2} portas | VERSO: {total_fisico//2} portas = {total_util} úteis"
     else:
         total_fisico = total_fisico_base
         total_util = total_fisico - 1
         total_util_lado = total_util
         qtd_p_lado, qtd_m_lado, qtd_g_lado = qtd_p, qtd_m, qtd_g
+        label_dupla = f"{total_util} úteis + 1 Tablet = {total_fisico} | Blocos: {', '.join(blocos) if blocos else 'Único'}"
 
     boxes_lista = gerar_boxes_lista(total_util_lado, qtd_p_lado, qtd_m_lado, qtd_g_lado, G_boxes)
-
-    label_dupla = ""
-    if dupla_face:
-        label_dupla = f"FRENTE: {total_fisico//2} portas ({total_util//2} úteis + 1 tablet) | VERSO: {total_fisico//2} portas ({total_util//2} úteis + 1 tablet) = {total_util} úteis + 2 tablets = {total_fisico} portas"
-    else:
-        label_dupla = f"{total_util} úteis + 1 Tablet = {total_fisico} portas | Blocos: {', '.join(blocos) if blocos else 'Único'}"
 
     novo = {
         "id": str(uuid.uuid4())[:8],
@@ -575,27 +565,24 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
         "total_util": total_util,
         "total_fisico": total_fisico,
         "total_tablets": 2 if dupla_face else 1,
+        "tem_blocos": tem_blocos,
+        "qtd_blocos": qtd_blocos,
         "blocos": blocos,
-        "qtd_p": qtd_p,
-        "qtd_m": qtd_m,
-        "qtd_g": qtd_g,
+        "qtd_p": qtd_p, "qtd_m": qtd_m, "qtd_g": qtd_g,
         "boxes_config": {"P": qtd_p, "M": qtd_m, "G": qtd_g},
         "G_boxes": G_boxes,
         "boxes_lista": boxes_lista,
         "box_tablet": BOX_TABLET_RESERVADO,
-        "box_tablet_frente": BOX_TABLET_RESERVADO,
-        "box_tablet_verso": BOX_TABLET_RESERVADO,
         "codigo_armario": codigo_armario,
         "armario_numero": codigo_armario,
         "armario_id": codigo_armario,
         "status":"ativo",
-        "criado_em": datetime.now().isoformat(),
+        "criado_em": now_brt().isoformat(),
         "label_dupla": label_dupla
     }
     conds.append(novo); save_json(ARQ_CONDS, conds)
-    registrar_auditoria("CRIOU_CONDOMINIO", detalhes=f"{novo['nome']} - {codigo_armario} Mod:{modelo} P:{qtd_p} M:{qtd_m} G:{qtd_g} Dupla:{dupla_face} Blocos:{blocos} {label_dupla}", condominio_id=novo["id"], request=request)
+    registrar_auditoria("CRIOU_CONDOMINIO", detalhes=f"{novo['nome']} - {codigo_armario} Blocos:{blocos}", condominio_id=novo["id"], request=request)
     return novo
-
 @app.put("/api/condominios/{cond_id}")
 def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: str = Depends(requer_auth)):
     conds = load_json(ARQ_CONDS, [])
