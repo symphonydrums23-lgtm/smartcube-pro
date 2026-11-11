@@ -190,7 +190,7 @@ def registrar_auditoria(acao, usuario="sistema", detalhes="", condominio_id="", 
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "status": "online", "versao": "v5.8.2-tablet-ocupa-cors-fix", "time": datetime.now().isoformat()}
+    return {"ok": True, "status": "online", "versao": "v5.8.5-build-11-11-2026-API-LIVRE-CONDFY", "time": datetime.now().isoformat()}
 
 @app.get("/api/auditoria")
 def listar_auditoria(request: Request, token: str = Depends(requer_auth)):
@@ -727,6 +727,39 @@ def excluir_operador(op_id: str, request: Request = None, token: str = Depends(r
     franqs = [f for f in franqs if str(f["id"]) != str(op_id)]
     save_json(ARQ_FRANQUIAS, franqs)
     return {"ok": True}
+
+# === v5.8.5 - API LIVRE GENERICA CONDFY / UCONDO - COLADO NO LUGAR CERTO ===
+@app.post("/api/integracao/gerar")
+def gerar_api_key_generica(payload: dict, request: Request, token: str = Depends(requer_auth)):
+    nome = str(payload.get("nome","")).strip() or "API-Livre-Generica"
+    conds = payload.get("condominios_permitidos", [])
+    keys = load_json(ARQ_KEYS, [])
+    nova_key = "sc_live_" + secrets.token_urlsafe(24)
+    novo = {
+        "id": str(uuid.uuid4())[:8],
+        "nome": nome,
+        "api_key": nova_key,
+        "condominios": conds,
+        "tipo": "generica_condfy",
+        "criado_em": datetime.now().isoformat(),
+    }
+    keys.append(novo)
+    save_json(ARQ_KEYS, keys)
+    registrar_auditoria("GEROU_API_KEY", detalhes=f"API {nome} - {nova_key[:12]}***", request=request)
+    return {"ok": True, "api_key": nova_key, "nome": nome, "integracao": novo}
+
+@app.get("/api/integracao/listar")
+def listar_keys_integracao(token: str = Depends(requer_auth)):
+    return load_json(ARQ_KEYS, [])
+
+@app.delete("/api/integracao/{key_id}")
+def excluir_key_integracao(key_id: str, request: Request, token: str = Depends(requer_auth)):
+    keys = load_json(ARQ_KEYS, [])
+    keys = [k for k in keys if str(k.get("id")) != str(key_id) and str(k.get("api_key")) != str(key_id)]
+    save_json(ARQ_KEYS, keys)
+    return {"ok": True}
+# === FIM API LIVRE ===
+
 @app.get("/api/moradores")
 def listar_mors(condominio: str = Query("1"), token: str = Depends(requer_auth)):
     mors = load_json(ARQ_MORS, [])
@@ -957,7 +990,7 @@ def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcio
     raw=load_json(ARQ_DADOS, {"lista":[],"historico":[]})
     lista = raw.get("lista",[]) if str(condominio)=="1" else [x for x in raw.get("lista",[]) if str(x.get("condominio_id"))==str(condominio)]
     perc=int(len(lista)/int(raw.get("total_boxes",16))*100) if raw.get("total_boxes") else 0
-    resultado={"condominio":condominio,"ocupados":len(lista),"previsao_percent":min(100,perc+15),"total_atrasados":0,"alertas_24h":[],"atualizado":datetime.now().isoformat(),"versao":"v5.8-tablet-ocupa"}
+    resultado={"condominio":condominio,"ocupados":len(lista),"previsao_percent":min(100,perc+15),"total_atrasados":0,"alertas_24h":[],"atualizado":datetime.now().isoformat(),"versao":"v5.8.5-tablet-ocupa"}
     _set_cache_ia("lotacao_"+condominio, resultado)
     return resultado
 
