@@ -836,16 +836,28 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
         historico=[x for x in hist_all if str(x.get("condominio_id"))==str(condominio)]
         c_target = next((c for c in conds if str(c["id"])==str(condominio)), None)
         total_boxes = int(c_target.get("total_util", c_target.get("total_boxes",16))) if c_target else int(raw.get("total_boxes",16))
+    
     ocupados=len(lista); livres=max(0,int(total_boxes)-ocupados)
     vencidas_lista = []
-    agora = datetime.now()
+    agora = now_brt()  # FIX BRT - era datetime.now() UTC
     for item in lista:
         try:
-            created = datetime.fromisoformat(item.get("created_at",""))
+            created_str = item.get("created_at","")
+            if not created_str:
+                continue
+            # tenta parse com timezone
+            try:
+                created = datetime.fromisoformat(created_str)
+            except:
+                created = datetime.strptime(created_str, "%Y-%m-%dT%H:%M:%S")
+            # garante que created tem timezone
+            if created.tzinfo is None:
+                created = BRT.localize(created)
             if (agora - created).total_seconds() / 3600 > 72:
                 vencidas_lista.append(item)
         except:
             pass
+
     return {
         "total_boxes":int(total_boxes),
         "livres":livres,
@@ -856,8 +868,8 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
         "vencidas_lista": vencidas_lista,
         "retiradas_total": len(historico),
         "por_hora": raw.get("por_hora", [0]*24),
-        "atualizado": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-        "timestamp":datetime.now().isoformat()
+        "atualizado": now_brt().strftime("%d/%m/%Y %H:%M:%S") + " BRT",  # FIX BRT
+        "timestamp": now_brt().isoformat()  # FIX BRT
     }
 
 @app.post("/api/auth/login")
