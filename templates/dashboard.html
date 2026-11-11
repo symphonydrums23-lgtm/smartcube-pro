@@ -772,27 +772,49 @@ function fecharExcluirCond(){}
 function confirmarExcluirCond(){}
 </script>
 <script>
-// FIX DEFINITIVO BOTÃO TRAVADO
-window.salvarOperador = async function(){
-  const btn = document.getElementById('btnSalvarOp');
-  if(btn){ btn.disabled = true; btn.innerText = 'Salvando...'; }
+<script>
+// FIX FINAL OPERADOR - ID CORRETO
+window.salvarNovoOperador = window.salvarOperador = async function(){
+  const dados = {
+    nome: document.getElementById('opNome')?.value?.trim(),
+    cnpj: document.getElementById('opCnpj')?.value?.trim(),
+    telefone: document.getElementById('opTel')?.value?.trim(),
+    cidade: document.getElementById('opCidade')?.value?.trim()
+  };
+  console.log('Salvando operador:', dados);
+  if(!dados.nome){ alert('Nome obrigatório!'); return; }
+  
   try{
     const token = localStorage.getItem('sc_token');
-    const dados = {
-      nome: document.getElementById('op_nome').value,
-      cnpj: document.getElementById('op_cnpj').value,
-      telefone: document.getElementById('op_telefone').value,
-      cidade: document.getElementById('op_cidade').value
-    };
-    let r = await fetch('/api/operadores',{
+    let r = await fetch(API_BASE+'/api/operadores',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
       body: JSON.stringify(dados)
     });
-    let res = await r.json();
-    if(r.ok){ alert('✅ Criado!'); location.reload(); }
-    else { alert('Erro: '+(res.msg||JSON.stringify(res))); if(btn){btn.disabled=false; btn.innerText='Salvar';} }
-  }catch(e){ alert('Erro: '+e.message); if(btn){btn.disabled=false; btn.innerText='Salvar';} }
+    let txt = await r.text();
+    console.log('Resposta API:', r.status, txt);
+    if(r.ok){
+      alert('✅ Operador criado!');
+      fecharNovoOperador();
+      carregarOperadores();
+    } else {
+      alert('Erro '+r.status+': '+txt);
+    }
+  }catch(e){
+    alert('Erro rede: '+e.message);
+  }
+}
+
+function novoOperador(){ document.getElementById('modalNovoOperador').style.display='flex'; }
+function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
+
+async function carregarOperadores(){
+  try{
+    let r = await fetchAuth(API_BASE+'/api/operadores');
+    let ops = await r.json();
+    let div = document.getElementById('listaOperadores');
+    if(div) div.innerHTML = ops.map(o=>`<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee"><span><b>${o.nome}</b> - ${o.cidade||''}</span><span style="font-size:10px">${o.cnpj||''}</span></div>`).join('') || 'Nenhum operador';
+  }catch(e){ console.log(e); }
 }
 </script>
 </body>
