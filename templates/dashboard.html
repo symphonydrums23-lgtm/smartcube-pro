@@ -693,16 +693,11 @@ checkTokenValido();
 carregarOperadores();
 
 <script>
-// === FIX FRANQUIA v3 DEFINITIVO - NÃO TRAVA MAIS ===
+// === FIX FRANQUIA FINAL - V6 LIMPO E FUNCIONANDO ===
 async function salvarOperador(){
   try{
-    const modal = document.querySelector('#modalOperador') || document.querySelector('.modal') || document.body;
-    const inputs = document.querySelectorAll('#modalOperador input, .modal input, input[placeholder]');
-    
-    // Pega na ordem que aparece no seu print: Nome, CNPJ/CPF, Telefone, Cidade
+    const todosInputs = Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null);
     let nome="", cnpj="", telefone="", cidade="";
-    const todosInputs = Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null); // só visíveis
-    
     if(todosInputs.length >= 4){
       nome = todosInputs[todosInputs.length-4]?.value || "";
       cnpj = todosInputs[todosInputs.length-3]?.value || "";
@@ -711,112 +706,62 @@ async function salvarOperador(){
     } else {
       nome = todosInputs[0]?.value || "";
     }
-
-    if(!nome || nome.trim()=="") { alert('Digite o nome do operador'); return; }
-    
-    const token = localStorage.getItem('sc_token') || localStorage.getItem('token') || "";
-    if(!token) { alert('ERRO: Você não está logado. Faça login de novo.'); return; }
-
-    console.log('Enviando:', {nome, cnpj, telefone, cidade});
-    
-    const resp = await fetch('/api/operadores', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify({nome: nome.trim(), cnpj, telefone, cidade})
-    });
-    
-    const texto = await resp.text();
-    console.log('Resposta:', resp.status, texto);
-    
-    if(resp.ok){
-      alert('✅ Operador '+nome+' criado com sucesso!');
-      location.reload();
-    } else {
-      alert('Erro do servidor ('+resp.status+'): '+texto);
-    }
-  } catch(err){
-    alert('Erro JS: '+err.message);
-    console.error(err);
-  }
-}
-
-// Corrige o botão automaticamente
-setTimeout(()=>{
-  document.querySelectorAll('button').forEach(b=>{
-    if(b.textContent.toLowerCase().includes('salvar operador')){
-      b.type = 'button';
-      b.onclick = (e)=>{ e.preventDefault(); salvarOperador(); return false; };
-      console.log('Botão corrigido!');
-    }
-  });
-}, 500);
-// === FIM V3 ===
-
-document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
-document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
-</script>
-<script>
-async function excluirCondModal(id,nome){
-  if(!confirm('🗑️ EXCLUIR CONDOMÍNIO\n\n'+nome+'\n\nTem certeza?')) return;
-  let senha = prompt('Digite a SENHA ADMIN para confirmar:');
-if(!senha){alert('Cancelado');return;}
-  try{
-    let r=await fetchAuth(API_BASE+'/api/condominios/'+id,{method:'DELETE'});
-    if(r.ok){alert('✅ Excluído');location.reload();}
-    else{let d=await r.json().catch(()=>({}));alert('Erro: '+(d.detail||r.status));}
-  }catch(e){alert(e.message);}
-}
-function fecharExcluirCond(){}
-function confirmarExcluirCond(){}
-</script>
-<script>
-<script>
-// FIX FINAL OPERADOR - ID CORRETO
-window.salvarNovoOperador = window.salvarOperador = async function(){
-  const dados = {
-    nome: document.getElementById('opNome')?.value?.trim(),
-    cnpj: document.getElementById('opCnpj')?.value?.trim(),
-    telefone: document.getElementById('opTel')?.value?.trim(),
-    cidade: document.getElementById('opCidade')?.value?.trim()
-  };
-  console.log('Salvando operador:', dados);
-  if(!dados.nome){ alert('Nome obrigatório!'); return; }
-  
-  try{
-    const token = localStorage.getItem('sc_token');
-    let r = await fetch(API_BASE+'/api/operadores',{
+    if(!nome.trim()){ alert('Digite o nome'); return; }
+    const token = localStorage.getItem('sc_token') || "";
+    const resp = await fetch(API_BASE+'/api/operadores', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body: JSON.stringify(dados)
+      body: JSON.stringify({nome: nome.trim(), cnpj, telefone, cidade})
     });
-    let txt = await r.text();
-    console.log('Resposta API:', r.status, txt);
-    if(r.ok){
-      alert('✅ Operador criado!');
-      fecharNovoOperador();
-      carregarOperadores();
+    const texto = await resp.text();
+    if(resp.ok){
+      alert('✅ Operador '+nome+' criado!');
+      location.reload();
     } else {
-      alert('Erro '+r.status+': '+txt);
+      alert('Erro ('+resp.status+'): '+texto);
     }
-  }catch(e){
-    alert('Erro rede: '+e.message);
-  }
+  }catch(err){ alert('Erro: '+err.message); }
 }
 
-function novoOperador(){ document.getElementById('modalNovoOperador').style.display='flex'; }
-function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
+window.salvarNovoOperador = salvarOperador;
+
+function novoOperador(){ 
+  let m=document.getElementById('modalNovoOperador');
+  if(m) m.style.display='flex';
+}
+function fecharNovoOperador(){ 
+  let m=document.getElementById('modalNovoOperador');
+  if(m) m.style.display='none';
+}
 
 async function carregarOperadores(){
   try{
     let r = await fetchAuth(API_BASE+'/api/operadores');
     let ops = await r.json();
     let div = document.getElementById('listaOperadores');
-    if(div) div.innerHTML = ops.map(o=><div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee"><span><b>${o.nome}</b> - ${o.cidade||''}</span><span style="font-size:10px">${o.cnpj||''}</span></div>).join('') || 'Nenhum operador';
+    if(div){
+      if(ops.length===0) div.innerHTML='Nenhum operador';
+      else div.innerHTML = ops.map(o=>`<div style="padding:8px;border-bottom:1px solid #eee"><b>${o.nome}</b> - ${o.cidade||''}</div>`).join('');
+    }
   }catch(e){ console.log(e); }
 }
+
+async function excluirCondModal(id,nome){
+  if(!confirm('Excluir '+nome+'?')) return;
+  let r=await fetchAuth(API_BASE+'/api/condominios/'+id,{method:'DELETE'});
+  if(r.ok) location.reload();
+}
+
+setTimeout(()=>{
+  document.querySelectorAll('button').forEach(b=>{
+    if(b.textContent.toLowerCase().includes('salvar operador')){
+      b.type='button';
+      b.onclick=(e)=>{ e.preventDefault(); salvarOperador(); return false; };
+    }
+  });
+}, 500);
+
+document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
 </script>
 </body>
 </html>
