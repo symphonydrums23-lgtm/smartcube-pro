@@ -1110,23 +1110,6 @@ def registrar_venda(payload: dict, request: Request, token: str = Depends(requer
 @app.post("/api/tablet/heartbeat")
 def tablet_heartbeat(payload: dict, request: Request):
     status=load_json(ARQ_TABLET_STATUS, {}); cond_id=str(payload.get("condominio_id","1")); status[cond_id]={"ultimo_heartbeat": now_brt().isoformat(), "tablet_id": payload.get("tablet_id",""), "bateria": payload.get("bateria",0), "online": True, "ip": request.client.host if request.client else ""}; save_json(ARQ_TABLET_STATUS, status); return {"ok": True}
-
-@app.get("/api/ia/lotacao-24h")
-def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcional)):
-    raw=load_json(ARQ_DADOS, {"lista":[],"historico":[]}); lista = raw.get("lista",[]) if str(condominio)=="1" else [x for x in raw.get("lista",[]) if str(x.get("condominio_id"))==str(condominio)]; return {"condominio":condominio,"ocupados":len(lista),"previsao_percent":min(100,int(len(lista)/16*100)+15),"atualizado":now_brt().isoformat()}
-
-@app.post("/api/admin/abrir-box/{box_id}")
-def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_auth)):
-    box_id = str(box_id).zfill(2)
-    if box_id in BOXES_TABLET_RESERVADOS: raise HTTPException(400, "Box 03 e do tablet")
-    registrar_auditoria("ABERTURA_REMOTA_ADMIN", usuario=TOKENS_VALIDOS.get(token,{}).get("user","admin"), detalhes=f"Box {box_id}", request=request)
-    dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]}); achado=None; nova=[]
-    for item in dados.get("lista",[]):
-        if str(item.get("box")).zfill(2)==box_id: achado=item
-        else: nova.append(item)
-    if achado:
-        achado["data_retirada"]=now_brt_str("%d/%m/%Y"); achado["hora_retirada"]=now_brt_str("%H:%M"); achado["retirada_por"]="ADMIN_REMOTO"; dados["lista"]=nova; dados["historico"].append(achado); save_json(ARQ_DADOS, dados)
-    return {"ok": True, "box": box_id}
 # ========== 30 ITENS NOVOS - FIM ==========
 if __name__ == "__main__":
     import uvicorn
