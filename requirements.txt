@@ -8,3 +8,4 @@ jinja2
 PyJWT
 python-dotenv
 websockets
+pytz
