@@ -771,5 +771,29 @@ if(!senha){alert('Cancelado');return;}
 function fecharExcluirCond(){}
 function confirmarExcluirCond(){}
 </script>
+<script>
+// FIX DEFINITIVO BOTÃO TRAVADO
+window.salvarOperador = async function(){
+  const btn = document.getElementById('btnSalvarOp');
+  if(btn){ btn.disabled = true; btn.innerText = 'Salvando...'; }
+  try{
+    const token = localStorage.getItem('sc_token');
+    const dados = {
+      nome: document.getElementById('op_nome').value,
+      cnpj: document.getElementById('op_cnpj').value,
+      telefone: document.getElementById('op_telefone').value,
+      cidade: document.getElementById('op_cidade').value
+    };
+    let r = await fetch('/api/operadores',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify(dados)
+    });
+    let res = await r.json();
+    if(r.ok){ alert('✅ Criado!'); location.reload(); }
+    else { alert('Erro: '+(res.msg||JSON.stringify(res))); if(btn){btn.disabled=false; btn.innerText='Salvar';} }
+  }catch(e){ alert('Erro: '+e.message); if(btn){btn.disabled=false; btn.innerText='Salvar';} }
+}
+</script>
 </body>
 </html>
