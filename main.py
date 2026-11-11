@@ -157,10 +157,17 @@ def is_token_valid(token: str) -> bool:
     dados = TOKENS_VALIDOS.get(token)
     if not dados: return False
     try:
-        if datetime.now() > dados["expires"]:
+        exp = dados["expires"]
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=BRT)
+        if now_brt() > exp:
             TOKENS_VALIDOS.pop(token, None); save_tokens(); return False
     except Exception:
-        return False
+        try:
+            if datetime.now() > dados["expires"]:
+                TOKENS_VALIDOS.pop(token, None); save_tokens(); return False
+        except:
+            return False
     return True
 
 def requer_auth(request: Request, authorization: str = Header(None), token: str = Query(None)):
