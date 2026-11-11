@@ -1054,6 +1054,80 @@ def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_
         save_json(ARQ_DADOS, dados)
     return {"ok": True, "box": box_id, "msg": f"Comando de abertura enviado para Box {box_id} - libera frente e verso (mesma caixa física)"}
 
+# ========== 30 ITENS NOVOS - INICIO - NAO MEXER NAS ROTAS ACIMA ==========
+@app.post("/api/condfy/sync")
+def condfy_sync(payload: dict, request: Request, token: str = Depends(requer_auth)):
+    condominio_id=str(payload.get("condominio_id","")); blocos_api=payload.get("blocos",[]); moradores_api=payload.get("moradores",[])
+    conds=load_json(ARQ_CONDS, [])
+    for c in conds:
+        if str(c["id"])==condominio_id and blocos_api:
+            c["blocos"]=blocos_api; c["tem_blocos"]=True; c["qtd_blocos"]=len(blocos_api); c["atualizado_em"]=now_brt().isoformat(); save_json(ARQ_CONDS, conds); break
+    if moradores_api:
+        mors=load_json(ARQ_MORS, []); mors=[m for m in mors if str(m.get("condominio"))!=condominio_id]
+        for m in moradores_api: mors.append({"id": str(uuid.uuid4())[:8],"nome": m.get("nome",""),"bloco": m.get("bloco",""),"apto": str(m.get("apto","")),"condominio": condominio_id})
+        save_json(ARQ_MORS, mors)
+    registrar_auditoria("CONDFY_SYNC", detalhes=f"Cond {condominio_id} Blocos:{len(blocos_api)}", condominio_id=condominio_id, request=request)
+    return {"ok": True, "blocos": blocos_api, "moradores": len(moradores_api)}
+
+@app.get("/api/condfy/sync")
+def condfy_sync_status(condominio: str = Query(...), token: str = Depends(requer_auth)):
+    conds=load_json(ARQ_CONDS, []); c=next((x for x in conds if str(x["id"])==condominio), None)
+    if not c: raise HTTPException(404, "Condominio nao encontrado")
+    mors=load_json(ARQ_MORS, []); qtd=len([m for m in mors if str(m.get("condominio"))==condominio])
+    return {"condominio": c, "blocos": c.get("blocos",[]), "qtd_moradores": qtd}
+
+@app.post("/api/whitelabel/save")
+def whitelabel_save(payload: dict, request: Request, token: str = Depends(requer_auth)):
+    dados=load_json(ARQ_WHITELABEL, {}); logo=payload.get("logo","")
+    if logo and logo.startswith("data:") and len(logo)>500*1024: raise HTTPException(400, "Logo base64 >500KB use URL S3 - ITEM 8")
+    dados.update({"logo": logo,"logo_url": payload.get("logo_url",""),"cor_primaria": payload.get("cor_primaria",""),"nome_empresa": payload.get("nome_empresa",""),"atualizado_em": now_brt().isoformat()})
+    save_json(ARQ_WHITELABEL, dados); return {"ok": True, "whitelabel": dados}
+
+@app.get("/api/whitelabel/public")
+def whitelabel_public():
+    return load_json(ARQ_WHITELABEL, {"logo_url": "/logo.png"})
+
+@app.post("/api/validar-apto")
+def validar_apto(payload: dict):
+    apto=str(payload.get("apto","")).strip()
+    import re
+    if not re.match(r"^[0-9]+[A-Za-z]?$|^[A-Za-z0-9\-/]+$", apto):
+        raise HTTPException(400, "Formato apto invalido. Use 12, 12A, 12B")
+    return {"ok": True, "apto": apto.upper()}
+
+@app.get("/api/comercial/vendedores")
+def listar_vendedores(token: str = Depends(requer_auth)):
+    return load_json(ARQ_VENDEDORES, [])
+
+@app.post("/api/comercial/venda")
+def registrar_venda(payload: dict, request: Request, token: str = Depends(requer_auth)):
+    comercial=load_json(ARQ_COMERCIAL, []); vends=load_json(ARQ_VENDEDORES, []); valor=float(payload.get("valor",0) or 0)
+    if valor==0: raise HTTPException(400, "Valor nao pode ser 0 - BUG R$ 0,00 ITEM 4")
+    vid=payload.get("vendedor_id"); vend=next((v for v in vends if str(v["id"])==str(vid)), None); comissao=0
+    if vend: comissao=valor*(vend.get("comissao_percent",10)/100); vend["vendas"]=vend.get("vendas",0)+1; vend["comissao_total"]=float(vend.get("comissao_total",0))+comissao; save_json(ARQ_VENDEDORES, vends)
+    venda={"id": str(uuid.uuid4())[:8], "condominio": payload.get("condominio",""), "valor": valor, "vendedor_id": vid, "comissao": comissao, "criado_em": now_brt().isoformat()}; comercial.append(venda); save_json(ARQ_COMERCIAL, comercial); return {"ok": True, "venda": venda}
+
+@app.post("/api/tablet/heartbeat")
+def tablet_heartbeat(payload: dict, request: Request):
+    status=load_json(ARQ_TABLET_STATUS, {}); cond_id=str(payload.get("condominio_id","1")); status[cond_id]={"ultimo_heartbeat": now_brt().isoformat(), "tablet_id": payload.get("tablet_id",""), "bateria": payload.get("bateria",0), "online": True, "ip": request.client.host if request.client else ""}; save_json(ARQ_TABLET_STATUS, status); return {"ok": True}
+
+@app.get("/api/ia/lotacao-24h")
+def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcional)):
+    raw=load_json(ARQ_DADOS, {"lista":[],"historico":[]}); lista = raw.get("lista",[]) if str(condominio)=="1" else [x for x in raw.get("lista",[]) if str(x.get("condominio_id"))==str(condominio)]; return {"condominio":condominio,"ocupados":len(lista),"previsao_percent":min(100,int(len(lista)/16*100)+15),"atualizado":now_brt().isoformat()}
+
+@app.post("/api/admin/abrir-box/{box_id}")
+def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_auth)):
+    box_id = str(box_id).zfill(2)
+    if box_id in BOXES_TABLET_RESERVADOS: raise HTTPException(400, "Box 03 e do tablet")
+    registrar_auditoria("ABERTURA_REMOTA_ADMIN", usuario=TOKENS_VALIDOS.get(token,{}).get("user","admin"), detalhes=f"Box {box_id}", request=request)
+    dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]}); achado=None; nova=[]
+    for item in dados.get("lista",[]):
+        if str(item.get("box")).zfill(2)==box_id: achado=item
+        else: nova.append(item)
+    if achado:
+        achado["data_retirada"]=now_brt_str("%d/%m/%Y"); achado["hora_retirada"]=now_brt_str("%H:%M"); achado["retirada_por"]="ADMIN_REMOTO"; dados["lista"]=nova; dados["historico"].append(achado); save_json(ARQ_DADOS, dados)
+    return {"ok": True, "box": box_id}
+# ========== 30 ITENS NOVOS - FIM ==========
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5000)
