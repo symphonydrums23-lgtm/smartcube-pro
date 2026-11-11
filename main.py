@@ -514,12 +514,24 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
         raise HTTPException(status_code=400, detail="Nome do condomínio obrigatório")
     conds = load_json(ARQ_CONDS, [])
     codigo_armario = payload.get("codigo_armario") or payload.get("armario_numero") or gerar_codigo_armario()
-    modelo = payload.get("modelo","18_BOXES")
+        modelo = payload.get("modelo","18_BOXES")
     preset = MODELOS_PRESET.get(modelo, MODELOS_PRESET["18_BOXES"])
     qtd_p = int(payload.get("qtd_p", payload.get("P", preset["P"])))
     qtd_m = int(payload.get("qtd_m", payload.get("M", preset["M"])))
     qtd_g = int(payload.get("qtd_g", payload.get("G", preset["G"])))
     dupla_face = bool(payload.get("dupla_face", False))
+    # === NOVO - ITEM 1 E 4 - BLOCOS ===
+    tem_blocos = bool(payload.get("tem_blocos", False))
+    qtd_blocos = int(payload.get("qtd_blocos", 0))
+    blocos_raw = payload.get("blocos", payload.get("bloco_lista", ""))
+    if isinstance(blocos_raw, str):
+        blocos = [b.strip() for b in blocos_raw.split(",") if b.strip()] if blocos_raw else []
+    elif isinstance(blocos_raw, list):
+        blocos = blocos_raw
+    else:
+        blocos = []
+    if tem_blocos and qtd_blocos and not blocos:
+        blocos = [chr(65+i) for i in range(qtd_blocos)]  # Gera A,B,C...
     blocos_raw = payload.get("blocos", payload.get("bloco_lista", ""))
     if isinstance(blocos_raw, str):
         blocos = [b.strip() for b in blocos_raw.split(",") if b.strip()] if blocos_raw else []
