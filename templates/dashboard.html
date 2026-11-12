@@ -601,6 +601,7 @@ function wlPreviewTotem() {
   if (!raw) { alert('Salve a marca primeiro!'); return; }
   const d = JSON.parse(raw);
   document.getElementById('wlTotemPreview').style.display = 'block';
+  document.getElementById('wlTotemPreview').style.background = d.cor_fundo || '#fff';
   document.getElementById('wlPrevNome').innerText = d.nome || 'SMART CUBE';
   document.getElementById('wlPrevNome').style.color = d.cor_frase || '#000';
   document.getElementById('wlPrevDesc').innerText = d.descricao || '';
@@ -610,9 +611,7 @@ function wlPreviewTotem() {
   document.getElementById('wlPrevBtnSair').style.background = d.cor_sair || '#C10010';
   if (d.logo1) { const i = document.getElementById('wlPrevImg1'); i.src = d.logo1; i.style.display = 'block'; }
   if (d.logo2) { const i2 = document.getElementById('wlPrevImg2'); i2.src = d.logo2; i2.style.display = 'block'; }
-  document.getElementById('wlTotemPreview').style.background = d.cor_fundo || '#fff';
 }
-
 // FIX ARRASTA E SOLTA + CORES
 (function initWhiteLabelFix(){
   const syncColor = (colorId, txtId) => {
