@@ -616,10 +616,59 @@ function wlPreviewTotem() {
 // FIX ARRASTA E SOLTA + CORES
 (function initWhiteLabelFix(){
   const syncColor = (colorId, txtId) => {
-    const c = document.getElementById(colorId); const t = document.getElementById(txtId);
+    const c = document.getElementById(colorId); 
+    const t = document.getElementById(txtId);
     if(!c||!t) return;
     c.addEventListener('input', () => t.value = c.value);
-    t.addEventListener('input', () => { if(/^#[0-9A-F]{6}$/i.test(t.value)) c.value = t.value; });
+    t.addEventListener('input', () => { 
+      if(/^#[0-9A-F]{6}$/i.test(t.value)) c.value = t.value; 
+    });
+  };
+  syncColor('wlCorFundo','wlCorFundoTxt');
+  syncColor('wlCorQr','wlCorQrTxt');
+  syncColor('wlCorBotao','wlCorBotaoTxt');
+  syncColor('wlCorFrase','wlCorFraseTxt');
+  syncColor('wlCorSair','wlCorSairTxt');
+
+  const setupDrop = (boxIndex) => {
+    const fileId = boxIndex===1?'wlFile1':'wlFile2';
+    const prevId = boxIndex===1?'wlPrev1':'wlPrev2';
+    const el = document.getElementById(fileId);
+    if(!el) return;
+    const box = el.parentElement;
+    ['dragenter','dragover'].forEach(ev=>{
+      box.addEventListener(ev, e=>{ 
+        e.preventDefault(); e.stopPropagation(); 
+        box.style.borderColor="#FF6A00"; box.style.background="#FFF7ED"; 
+      });
+    });
+    ['dragleave','drop'].forEach(ev=>{
+      box.addEventListener(ev, e=>{
+        e.preventDefault(); e.stopPropagation();
+        box.style.borderColor="#CBD5E1"; box.style.background="#F8FAFC";
+        if(ev==='drop' && e.dataTransfer.files.length){
+          el.files = e.dataTransfer.files;
+          wlPreviewLogo(el, prevId);
+        }
+      });
+    });
+  };
+  setupDrop(1);
+  setupDrop(2);
+})();
+
+// === NOVO BLOCOS (Item 1) - FORA DO FIX ===
+function toggleBlocos(){
+  const chk=document.getElementById('nTemBlocos')?.checked;
+  const g=document.getElementById('nBlocosGroup');
+  if(g) g.style.display=chk?'grid':'none';
+  atualizarBlocosResumo();
+}
+function atualizarBlocosResumo(){
+  const q=parseInt(document.getElementById('nQtdBlocos')?.value||1);
+  const el=document.getElementById('nBlocosResumo');
+  if(el) el.innerText=q+' bloco'+(q>1?'s':'');
+}
   };
   syncColor('wlCorFundo','wlCorFundoTxt');
   syncColor('wlCorQr','wlCorQrTxt');
