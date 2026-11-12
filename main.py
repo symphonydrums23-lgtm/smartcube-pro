@@ -16,7 +16,6 @@ def now_brt():
 def now_brt_str(fmt="%d/%m/%Y %H:%M:%S"):
     return now_brt().strftime(fmt)
 
-# === NOVOS ARQUIVOS - ITENS 11,12,19,20,24-30 ===
 ARQ_COMERCIAL = "comercial.json"
 ARQ_CONTRATOS = "contratos.json"
 ARQ_CHAMADOS = "chamados.json"
@@ -34,7 +33,6 @@ ADMIN_PASS = os.getenv("SMARTCUBE_ADMIN_PASS")
 if not ADMIN_USER or not ADMIN_PASS:
     raise RuntimeError("SMARTCUBE_USER e SMARTCUBE_ADMIN_PASS obrigatórios no .env")
 
-# === FIX v5.8.2 - LIBERA GITHUB PAGES - APENAS ISSO MUDA NO TOPO ===
 ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "")
 if ALLOWED_ORIGINS_RAW:
     ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
@@ -55,7 +53,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# === FIM DO FIX ===
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
@@ -65,11 +62,9 @@ if not os.path.exists(TEMPLATES_DIR) and os.path.exists(ALT_TEMPLATES):
     TEMPLATES_DIR = ALT_TEMPLATES
 
 FILE_LOCK = threading.Lock()
-
 BOX_TABLET_RESERVADO = "03"
 BOXES_TABLET_RESERVADOS = {"03", "3", "03F", "03V", "03_F", "03_V", "03-F", "03-V"}
 
-# v5.8 - TABLET OCUPA 1 BOX (não é extra) - CORRECAO PRINCIPAL
 MODELOS_PRESET = {
     "1_BOX": {"label": "1 Box (Kit)", "fisico": 2, "util": 1, "P": 1, "M": 0, "G": 0, "G_boxes": []},
     "8_BOXES": {"label": "8 Boxes", "fisico": 8, "util": 7, "P": 4, "M": 2, "G": 1, "G_boxes": ["08"]},
@@ -107,6 +102,7 @@ ARQ_TOKENS = "tokens.json"; ARQ_DADOS = "dashboard_dados.json"; ARQ_KEYS = "api_
 ARQ_AUDIT = "auditoria.json"; ARQ_CONDS = "condominios.json"; ARQ_MORS = "moradores.json"
 ARQ_APP_USERS = "app_users.json"; ARQ_CACHE_IA = "ia_cache.json"; ARQ_BLOQUEIOS = "ia_bloqueios.json"
 ARQ_FRANQUIAS = "franquias.json"
+
 def no_cache_html(path):
     if os.path.exists(path):
         with open(path, 'r', encoding='utf-8') as f: content = f.read()
@@ -271,11 +267,6 @@ def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None):
     else:
         g_list = todos_numeros[-qtd_g:] if qtd_g>0 else []
     m_list = todos_numeros[-(qtd_g+qtd_m):-qtd_g] if qtd_m>0 and qtd_g>0 else (todos_numeros[-qtd_m:] if qtd_m>0 else [])
-    if qtd_g>0 and qtd_m>0:
-        p_list = todos_numeros[:qtd_p]
-    else:
-        usados = set(g_list+m_list)
-        p_list = [b for b in todos_numeros if b not in usados][:qtd_p]
     boxes = []
     for b in todos_numeros:
         if b in g_list: tam="G"
@@ -507,6 +498,7 @@ async def tablet_retirada(payload: dict, request: Request = None):
     registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado['box']} Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", request=request)
     return {"ok": True, "box": achado["box"], "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
 
+# === CRIAR CONDOMINIO - CORRIGIDO SEM DUPLICACAO ===
 @app.post("/api/condominios")
 def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth)):
     nome = str(payload.get("nome","")).strip()
@@ -521,7 +513,6 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
     qtd_g = int(payload.get("qtd_g", payload.get("G", preset["G"])))
     dupla_face = bool(payload.get("dupla_face", False))
 
-    # === ITEM 1 - BLOCOS - VERSÃO LIMPA ===
     tem_blocos = bool(payload.get("tem_blocos", False))
     qtd_blocos = int(payload.get("qtd_blocos", 0) or 0)
     blocos_raw = payload.get("blocos", payload.get("bloco_lista", ""))
@@ -532,7 +523,7 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
         blocos = [str(b).strip() for b in blocos_raw if str(b).strip()]
     
     if tem_blocos and qtd_blocos and not blocos:
-        blocos = [chr(65+i) for i in range(qtd_blocos)]  # A,B,C...
+        blocos = [chr(65+i) for i in range(qtd_blocos)]
 
     total_fisico_base = int(payload.get("total_fisico", preset["fisico"]))
     G_boxes = payload.get("G_boxes", preset["G_boxes"])
@@ -589,10 +580,9 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
 
     conds.append(novo)
     save_json(ARQ_CONDS, conds)
-    return novo
-    conds.append(novo); save_json(ARQ_CONDS, conds)
     registrar_auditoria("CRIOU_CONDOMINIO", detalhes=f"{novo['nome']} - {codigo_armario} Blocos:{blocos}", condominio_id=novo["id"], request=request)
     return novo
+
 @app.put("/api/condominios/{cond_id}")
 def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: str = Depends(requer_auth)):
     conds = load_json(ARQ_CONDS, [])
@@ -619,7 +609,6 @@ def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: 
                 qtd_m = int(c.get("qtd_m", preset["M"]))
                 qtd_g = int(c.get("qtd_g", preset["G"]))
                 dupla = bool(c.get("dupla_face", False))
-                blocos = c.get("blocos", [])
                 total_fisico = int(preset["fisico"])
                 if dupla:
                     total_util = total_fisico - 2
@@ -686,7 +675,6 @@ def excluir_cond_com_senha(cond_id: str, payload: dict, request: Request, token:
     registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido {cond_alvo.get('nome')} {cond_alvo.get('codigo_armario','')} com senha admin", condominio_id=cond_id, request=request)
     return {"ok": True, "msg": f"Condomínio {cond_alvo.get('nome')} excluído"}
 
-# === FIX v5.8.3 - OPERADOR - COLADO NO LUGAR CERTO ===
 @app.post("/api/usuarios/operador")
 def criar_operador(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
     condominio = str(payload.get("condominio") or payload.get("condominio_id") or "").strip()
@@ -694,13 +682,10 @@ def criar_operador(payload: dict, request: Request = None, token: str = Depends(
     apto = str(payload.get("apto") or payload.get("apartamento") or "").strip()
     senha = str(payload.get("senha") or "").strip()
     nome = str(payload.get("nome") or f"Operador {bloco}/{apto}").strip()
-
     if not condominio or not bloco or not apto or not senha:
         raise HTTPException(status_code=400, detail="Condomínio, bloco, apto e senha são obrigatórios")
-
     users = load_json(ARQ_APP_USERS, [])
     existente = next((u for u in users if str(u.get("condominio"))==condominio and str(u.get("bloco")).lower()==bloco.lower() and str(u.get("apto")).lower()==apto.lower()), None)
-    
     novo_user = {
         "id": existente["id"] if existente else str(uuid.uuid4())[:8],
         "condominio": condominio,
@@ -712,13 +697,10 @@ def criar_operador(payload: dict, request: Request = None, token: str = Depends(
         "criado_em": existente.get("criado_em") if existente else datetime.now().isoformat(),
         "atualizado_em": datetime.now().isoformat()
     }
-    
     if existente:
         users = [u for u in users if not (str(u.get("condominio"))==condominio and str(u.get("bloco")).lower()==bloco.lower() and str(u.get("apto")).lower()==apto.lower())]
-    
     users.append(novo_user)
     save_json(ARQ_APP_USERS, users)
-    
     registrar_auditoria("CRIOU_OPERADOR", detalhes=f"Operador {nome} {bloco}/{apto} Cond {condominio}", condominio_id=condominio, request=request)
     return {"ok": True, "usuario": novo_user}
 
@@ -728,8 +710,7 @@ def listar_usuarios(condominio: str = Query(None), token: str = Depends(requer_a
     if condominio:
         users = [u for u in users if str(u.get("condominio"))==str(condominio)]
     return users
-# === FIM FIX OPERADOR ===
-# === FIX v5.8.4 - FRANQUIAS (modal da sua foto) ===
+
 @app.get("/api/operadores")
 def listar_operadores(token: str = Depends(requer_auth)):
     return load_json(ARQ_FRANQUIAS, [])
@@ -760,7 +741,6 @@ def excluir_operador(op_id: str, request: Request = None, token: str = Depends(r
     save_json(ARQ_FRANQUIAS, franqs)
     return {"ok": True}
 
-# === v5.8.5 - API LIVRE GENERICA CONDFY / UCONDO - COLADO NO LUGAR CERTO ===
 @app.post("/api/integracao/gerar")
 def gerar_api_key_generica(payload: dict, request: Request, token: str = Depends(requer_auth)):
     nome = str(payload.get("nome","")).strip() or "API-Livre-Generica"
@@ -790,7 +770,6 @@ def excluir_key_integracao(key_id: str, request: Request, token: str = Depends(r
     keys = [k for k in keys if str(k.get("id")) != str(key_id) and str(k.get("api_key")) != str(key_id)]
     save_json(ARQ_KEYS, keys)
     return {"ok": True}
-# === FIM API LIVRE ===
 
 @app.get("/api/moradores")
 def listar_mors(condominio: str = Query("1"), token: str = Depends(requer_auth)):
@@ -849,18 +828,16 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
     
     ocupados=len(lista); livres=max(0,int(total_boxes)-ocupados)
     vencidas_lista = []
-    agora = now_brt()  # FIX BRT - era datetime.now() UTC
+    agora = now_brt()
     for item in lista:
         try:
             created_str = item.get("created_at","")
             if not created_str:
                 continue
-            # tenta parse com timezone
             try:
                 created = datetime.fromisoformat(created_str)
             except:
                 created = datetime.strptime(created_str, "%Y-%m-%dT%H:%M:%S")
-            # garante que created tem timezone
             if created.tzinfo is None:
                 created = BRT.localize(created)
             if (agora - created).total_seconds() / 3600 > 72:
@@ -878,8 +855,8 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
         "vencidas_lista": vencidas_lista,
         "retiradas_total": len(historico),
         "por_hora": raw.get("por_hora", [0]*24),
-        "atualizado": now_brt().strftime("%d/%m/%Y %H:%M:%S") + " BRT",  # FIX BRT
-        "timestamp": now_brt().isoformat()  # FIX BRT
+        "atualizado": now_brt().strftime("%d/%m/%Y %H:%M:%S") + " BRT",
+        "timestamp": now_brt().isoformat()
     }
 
 @app.post("/api/auth/login")
@@ -1063,7 +1040,6 @@ def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_
         save_json(ARQ_DADOS, dados)
     return {"ok": True, "box": box_id, "msg": f"Comando de abertura enviado para Box {box_id} - libera frente e verso (mesma caixa física)"}
 
-# ========== 30 ITENS NOVOS - INICIO - NAO MEXER NAS ROTAS ACIMA ==========
 @app.post("/api/condfy/sync")
 def condfy_sync(payload: dict, request: Request, token: str = Depends(requer_auth)):
     condominio_id=str(payload.get("condominio_id","")); blocos_api=payload.get("blocos",[]); moradores_api=payload.get("moradores",[])
@@ -1119,7 +1095,7 @@ def registrar_venda(payload: dict, request: Request, token: str = Depends(requer
 @app.post("/api/tablet/heartbeat")
 def tablet_heartbeat(payload: dict, request: Request):
     status=load_json(ARQ_TABLET_STATUS, {}); cond_id=str(payload.get("condominio_id","1")); status[cond_id]={"ultimo_heartbeat": now_brt().isoformat(), "tablet_id": payload.get("tablet_id",""), "bateria": payload.get("bateria",0), "online": True, "ip": request.client.host if request.client else ""}; save_json(ARQ_TABLET_STATUS, status); return {"ok": True}
-# ========== 30 ITENS NOVOS - FIM ==========
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5000)
