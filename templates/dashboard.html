@@ -749,19 +749,43 @@ async function salvarNovoCond(){
   let qtd_p=parseInt(document.getElementById('nQtdP').value)||1;
   let qtd_m=parseInt(document.getElementById('nQtdM').value)||0;
   let qtd_g=parseInt(document.getElementById('nQtdG').value)||0;
-  let payload={nome:document.getElementById('nNome').value,cnpj:document.getElementById('nCnpj').value,endereco:document.getElementById('nEnd').value,armario_num:document.getElementById('nArm').value,modelo:modelo,dupla_face:dupla,qtd_p:qtd_p,qtd_m:qtd_m,qtd_g:qtd_g,P:qtd_p,M:qtd_m,G:qtd_g,total_boxes:qtd_p+qtd_m+qtd_g,data_inicio:document.getElementById('nDataInicio').value,periodo:document.getElementById('nPeriodo').value,valor_mensal:document.getElementById('nValor').value,valor_instalacao:document.getElementById('nValorInst').value};
+  
+  let temBlocos=document.getElementById('nTemBlocos')?.checked||false;
+  let qtdBlocos=parseInt(document.getElementById('nQtdBlocos')?.value||1);
+  let nomesBlocos=document.getElementById('nNomesBlocos')?.value||'';
+
+  let payload={
+    nome:document.getElementById('nNome').value,
+    cnpj:document.getElementById('nCnpj').value,
+    endereco:document.getElementById('nEnd').value,
+    armario_num:document.getElementById('nArm').value,
+    modelo:modelo,
+    dupla_face:dupla,
+    qtd_p:qtd_p,qtd_m:qtd_m,qtd_g:qtd_g,
+    P:qtd_p,M:qtd_m,G:qtd_g,
+    total_boxes:qtd_p+qtd_m+qtd_g,
+    data_inicio:document.getElementById('nDataInicio').value,
+    periodo:document.getElementById('nPeriodo').value,
+    valor_mensal:document.getElementById('nValor').value,
+    valor_instalacao:document.getElementById('nValorInst').value,
+    // NOVO BLOCOS
+    blocos:temBlocos,
+    tem_blocos:temBlocos,
+    qtd_blocos:temBlocos?qtdBlocos:1,
+    nomes_blocos:nomesBlocos
+  };
   if(!payload.nome){alert('Nome obrigatório');return;}
   try{
     let r=await fetchAuth(API_BASE+'/api/condominios',{method:'POST',headers:authHeadersJson(),body:JSON.stringify(payload)});
     let d=await r.json();
-    if(r.ok){fecharNovoCond();carregarConds();carregarCondsSelect();alert(`✅ ${d.codigo_armario||d.armario_num} criado - ${qtd_p+qtd_m+qtd_g} úteis - Box 03 tablet reservado`);}
+    if(r.ok){
+      fecharNovoCond();
+      carregarConds();carregarCondsSelect();
+      alert(`✅ ${d.codigo_armario||d.armario_num} criado - ${qtd_p+qtd_m+qtd_g} úteis - ${temBlocos?qtdBlocos+' blocos':''} - Box 03 tablet`);
+    }
     else alert('Erro: '+(d.detail||JSON.stringify(d)));
   }catch(e){alert('Erro:'+e.message)}
 }
-carregarCondsSelect();
-carregarDados();
-checkTokenValido();
-carregarOperadores();
 
 // === FIX FRANQUIA v3 DEFINITIVO - NÃO TRAVA MAIS ===
 async function salvarOperador(){
