@@ -145,6 +145,16 @@ body{background:#F5F6FA;display:flex;min-height:100vh}
 <div><span class="label">Nome do Condomínio *</span><input id="nNome" class="input" placeholder="Plaza Del Sol"></div>
 <div style="margin-top:12px"><span class="label">CNPJ</span><input id="nCnpj" class="input" placeholder="00.000.000/0000-00"></div>
 <div style="margin-top:12px"><span class="label">Endereço</span><input id="nEnd" class="input" placeholder="QNN 38 Bloco 01, Ceilandia DF"></div>
+  <div style="margin-top:12px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:12px">
+<div style="display:flex;gap:10px;align-items:center">
+<label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;cursor:pointer"><input id="nTemBlocos" type="checkbox" checked onchange="toggleBlocos()"> 🏢 Tem blocos? (Item 1)</label>
+<span id="nBlocosResumo" style="font-size:10px;color:#0369A1;margin-left:auto">1 bloco • Bloco A</span>
+</div>
+<div id="nBlocosGroup" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div><span class="label">Quantos blocos?</span><input id="nQtdBlocos" type="number" min="1" max="50" value="1" class="input" oninput="atualizarBlocosResumo()"></div>
+<div><span class="label">Nomes (A,B,C ou vazio)</span><input id="nNomesBlocos" class="input" placeholder="A,B,C"></div>
+</div>
+</div>
 
 <div style="margin-top:14px;background:#FFF7ED;border:1px solid #FFEDD5;border-radius:10px;padding:12px">
 <div style="font-size:11px;font-weight:800;color:#9A3412;margin-bottom:8px">📦 MODELO DO ARMÁRIO (novo v5.7)</div>
