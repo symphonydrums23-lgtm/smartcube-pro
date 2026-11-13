@@ -287,7 +287,7 @@ def get_box_livre(dados, condominio_id="1", tamanho="P", cond_config=None):
     ocupados = set()
     for x in lista_filtrada:
         try:
-            b = str(x.get("box","")).strip().upper().replace("F","").replace("V","").replace("_","").replace("-","")
+           b = str(x.get("box","")).strip().upper()
             if not b: continue
             try:
                 num = int(b)
