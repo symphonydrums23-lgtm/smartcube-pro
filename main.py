@@ -764,8 +764,19 @@ def gerar_api_key_generica(payload: dict, request: Request, token: str = Depends
 
 @app.get("/api/integracao/listar")
 def listar_keys_integracao(token: str = Depends(requer_auth)):
-    return load_json(ARQ_KEYS, [])
-
+    keys = load_json(ARQ_KEYS, [])
+    # Nunca devolve a key completa, só preview
+    saida = []
+    for k in keys:
+        saida.append({
+            "id": k.get("id"),
+            "nome": k.get("nome"),
+            "condominios": k.get("condominios", []),
+            "tipo": k.get("tipo"),
+            "criado_em": k.get("criado_em"),
+            "api_key_preview": (k.get("api_key","")[:12] + "***") if k.get("api_key") else ""
+        })
+    return saida
 @app.delete("/api/integracao/{key_id}")
 def excluir_key_integracao(key_id: str, request: Request, token: str = Depends(requer_auth)):
     keys = load_json(ARQ_KEYS, [])
