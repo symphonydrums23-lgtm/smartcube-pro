@@ -844,13 +844,17 @@ def criar_mor(payload: dict, request: Request = None, token: str = Depends(reque
     mors = load_json(ARQ_MORS, [])
     novo = {"id": str(uuid.uuid4())[:8],"nome": nome,"bloco": payload.get("bloco",""),"apto": payload.get("apto",""),"condominio": payload.get("condominio","1")}
     mors.append(novo); save_json(ARQ_MORS, mors)
+    registrar_auditoria("CRIOU_MORADOR", detalhes=f"{nome} {novo['bloco']}/{novo['apto']}", condominio_id=str(novo["condominio"]), request=request)
     return novo
 
 @app.delete("/api/moradores")
 def deletar_mor(id: str = Query(...), request: Request = None, token: str = Depends(requer_auth)):
-    mors = load_json(ARQ_MORS, []); mors=[m for m in mors if str(m["id"])!=str(id)]
-    save_json(ARQ_MORS, mors); return {"ok":True}
-
+    mors = load_json(ARQ_MORS, [])
+    alvo = next((m for m in mors if str(m["id"]) == str(id)), None)
+    mors = [m for m in mors if str(m["id"]) != str(id)]
+    save_json(ARQ_MORS, mors)
+    registrar_auditoria("EXCLUIU_MORADOR", detalhes=f"{alvo.get('nome') if alvo else id} {alvo.get('bloco') if alvo else ''}/{alvo.get('apto') if alvo else ''}", condominio_id=str(alvo.get("condominio","")) if alvo else "", request=request)
+    return {"ok": True}
 @app.post("/api/moradores/import")
 async def import_csv(file: UploadFile = File(...), condominio: str = Form(...), request: Request = None, token: str = Depends(requer_auth)):
     content = (await file.read()).decode('utf-8', errors='ignore')
