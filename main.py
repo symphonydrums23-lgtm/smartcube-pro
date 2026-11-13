@@ -1243,9 +1243,18 @@ def registrar_venda(payload: dict, request: Request, token: str = Depends(requer
     venda={"id": str(uuid.uuid4())[:8], "condominio": payload.get("condominio",""), "valor": valor, "vendedor_id": vid, "comissao": comissao, "criado_em": now_brt().isoformat()}; comercial.append(venda); save_json(ARQ_COMERCIAL, comercial); return {"ok": True, "venda": venda}
 
 @app.post("/api/tablet/heartbeat")
-def tablet_heartbeat(payload: dict, request: Request):
-    status=load_json(ARQ_TABLET_STATUS, {}); cond_id=str(payload.get("condominio_id","1")); status[cond_id]={"ultimo_heartbeat": now_brt().isoformat(), "tablet_id": payload.get("tablet_id",""), "bateria": payload.get("bateria",0), "online": True, "ip": request.client.host if request.client else ""}; save_json(ARQ_TABLET_STATUS, status); return {"ok": True}
-
+def tablet_heartbeat(payload: dict, request: Request, tablet: dict = Depends(verificar_tablet_token)):
+    status = load_json(ARQ_TABLET_STATUS, {})
+    cond_id = request.state.tablet_condominio_id
+    status[cond_id] = {
+        "ultimo_heartbeat": now_brt().isoformat(),
+        "tablet_id": request.state.tablet_id or payload.get("tablet_id", ""),
+        "bateria": payload.get("bateria", 0),
+        "online": True,
+        "ip": request.client.host if request.client else ""
+    }
+    save_json(ARQ_TABLET_STATUS, status)
+    return {"ok": True}
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5000)
