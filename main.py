@@ -1025,7 +1025,7 @@ async def api_entregas_compat(payload: dict, request: Request = None, api_key: d
     return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "bloco": nova["bloco"]}
 
 @app.post("/api/retiradas")
-async def api_retiradas_compat(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
+async def api_retiradas_compat(payload: dict, request: Request = None, api_key: dict = Depends(verificar_api_key)):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     codigo = str(payload.get("protocolo") or payload.get("codigo") or "").strip()
     if codigo.startswith("SC-") and not codigo.startswith("SC-RET-"):
