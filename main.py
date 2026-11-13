@@ -23,6 +23,25 @@ ARQ_RECLAMACOES = "reclamacoes.json"
 ARQ_VENDEDORES = "vendedores.json"
 ARQ_WHITELABEL = "whitelabel.json"
 ARQ_TABLET_STATUS = "tablet_status.json"
+ARQ_TABLET_TOKENS = "tablet_tokens.json"
+
+def verificar_tablet_token(request: Request, x_tablet_token: str = Header(None)):
+    token = x_tablet_token or ""
+    if not token:
+        auth = request.headers.get("authorization") or ""
+        if "Bearer" in auth:
+            token = auth.replace("Bearer ", "").strip()
+    if not token:
+        raise HTTPException(401, "X-Tablet-Token obrigatório")
+    tokens = load_json(ARQ_TABLET_TOKENS, {})
+    dados = tokens.get(token)
+    if not dados:
+        raise HTTPException(401, "Token do tablet inválido")
+    request.state.tablet_condominio_id = str(dados.get("condominio_id"))
+    request.state.tablet_id = dados.get("tablet_id", "")
+    return dados
+
+SECRET_JWT = os.getenv("SECRET_JWT")
 
 SECRET_JWT = os.getenv("SECRET_JWT")
 if not SECRET_JWT or len(SECRET_JWT) < 32:
