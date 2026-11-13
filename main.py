@@ -432,21 +432,22 @@ def conds_public():
 
 @app.get("/api/condominios/{cond_id}")
 def get_cond(cond_id: str, token: str = Depends(requer_auth)):
-    conds = load_json(ARQ_CONDS, []); mors = load_json(ARQ_MORS, [])
-    conds = garantir_codigo_armario(conds)
     if str(cond_id) == "1":
-        total_boxes = 16
-        try:
-            soma = sum(int(c.get("total_util", c.get("total_boxes",0))) for c in conds if str(c.get("id"))!="1")
-            if soma>0: total_boxes=soma
-        except: pass
-        return {"id":"1","nome":"Todos condomínios","total_boxes":total_boxes,"qtd_moradores":len(mors),"status":"ativo"}
+        raise HTTPException(status_code=400, detail="Use o id real do condomínio, '1' não é permitido.")
+    conds = load_json(ARQ_CONDS, [])
+    mors = load_json(ARQ_MORS, [])
+    conds = garantir_codigo_armario(conds)
     for c in conds:
-        if str(c["id"])==str(cond_id):
-            c["qtd_moradores"] = len([m for m in mors if str(m.get("condominio"))==str(cond_id)])
+        if str(c["id"]) == str(cond_id):
+            c = dict(c)
+            # 3.2 - Não expõe dado sensível / comercial no GET
+            c.pop("cnpj", None)
+            c.pop("valor_mensal", None)
+            c.pop("valor_instalacao", None)
+            c.pop("endereco", None)
+            c["qtd_moradores"] = len([m for m in mors if str(m.get("condominio")) == str(cond_id)])
             return c
     raise HTTPException(404, "Condomínio não encontrado")
-
 @app.post("/api/tablet/entrega")
 async def tablet_entrega(payload: dict, request: Request = None):
     with FILE_LOCK:
