@@ -5,9 +5,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
 import json, os, secrets, uuid, csv, io, time, jwt, threading, hashlib, binascii, random
-from collections import defaultdict
 from dotenv import load_dotenv
 load_dotenv()
+
+lock_entregas = threading.Lock()
 
 import pytz
 BRT = pytz.timezone('America/Sao_Paulo')
