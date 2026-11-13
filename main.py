@@ -531,7 +531,7 @@ async def tablet_retirada(payload: dict, request: Request = None):
         dados["lista"]=nova_lista
         dados["historico"].append(achado)
         save_json(ARQ_DADOS, dados)
-        registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado['box']} Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", request=request)
+       registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado['box']} Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", condominio_id=str(achado.get("condominio_id","")), request=request)
         return {"ok": True, "box": achado["box"], "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
 # === CRIAR CONDOMINIO - CORRIGIDO SEM DUPLICACAO ===
 @app.post("/api/condominios")
