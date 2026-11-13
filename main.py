@@ -991,7 +991,7 @@ def auth_verificar_post(token: str = Depends(requer_auth)):
     return {"ok": True, "user": dados.get("user","admin")}
 
 @app.post("/api/entregas")
-async def api_entregas_compat(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
+async def api_entregas_compat(payload: dict, request: Request = None, api_key: dict = Depends(verificar_api_key)):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     condominio_id = str(payload.get("condominio_id","1"))
     cond_config = get_cond_config(condominio_id)
