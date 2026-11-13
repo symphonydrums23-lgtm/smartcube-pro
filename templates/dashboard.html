@@ -825,7 +825,7 @@ async function salvarNovoCond(){
 }
 
 // === FIX FRANQUIA v3 DEFINITIVO - NÃO TRAVA MAIS ===
-async function salvarOperador(){
+function salvarNovoOperador()
   try{
     const modal = document.querySelector('#modalOperador') || document.querySelector('.modal') || document.body;
     const inputs = document.querySelectorAll('#modalOperador input, .modal input, input[placeholder]');
@@ -908,7 +908,7 @@ function confirmarExcluirCond(){}
 function novoOperador(){ document.getElementById('modalNovoOperador').style.display='flex'; }
 function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
 
-async function salvarOperador(){
+function salvarNovoOperador()
   let nome = document.getElementById('opNome')?.value?.trim() || '';
   if(!nome){ alert('Digite o nome'); return; }
   let token = localStorage.getItem('sc_token') || '';
