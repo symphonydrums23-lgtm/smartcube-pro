@@ -1046,37 +1046,38 @@ def auth_verificar_post(token: str = Depends(requer_auth)):
 
 @app.post("/api/entregas")
 async def api_entregas_compat(payload: dict, request: Request = None, api_key: dict = Depends(verificar_api_key)):
-    dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
-    condominio_id = str(payload.get("condominio_id","1"))
-    cond_config = get_cond_config(condominio_id)
-    tamanho = payload.get("tamanho","P")
-    box_req, _, _ = get_box_livre(dados, condominio_id, tamanho, cond_config)
-    if not box_req:
-        raise HTTPException(status_code=409, detail=f"SEM_ESPACO_{tamanho}")
-    existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
-    codigo_morador = ""
-    for _ in range(20):
-        codigo_morador = f"{secrets.randbelow(900000)+100000:06d}"
-        if codigo_morador not in existentes_cod:
-            break
-    nova = {
-        "box": str(box_req).zfill(2),
-        "bloco": payload.get("bloco",""),
-        "apartamento": payload.get("apartamento") or payload.get("apto",""),
-        "codigo": codigo_morador,
-        "codigo_retirada": codigo_morador,
-        "qr_code": f"SC-RET-{secrets.token_hex(6).upper()}",
-        "protocolo": payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}",
-        "data": payload.get("data") or datetime.now().strftime("%d/%m/%Y"),
-        "hora": payload.get("hora") or datetime.now().strftime("%H:%M"),
-        "created_at": payload.get("data_hora") or datetime.now().isoformat(),
-        "condominio_id": condominio_id,
-        "qr_valido": True,
-        "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
-    }
-    dados["lista"].append(nova); save_json(ARQ_DADOS, dados)
-    registrar_auditoria("ENTREGA_API", detalhes=nova["protocolo"], request=request)
-    return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "bloco": nova["bloco"]}
+    with lock_entregas:
+        dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+        condominio_id = str(payload.get("condominio_id","1"))
+        cond_config = get_cond_config(condominio_id)
+        tamanho = payload.get("tamanho","P")
+        box_req, _, _ = get_box_livre(dados, condominio_id, tamanho, cond_config)
+        if not box_req:
+            raise HTTPException(status_code=409, detail=f"SEM_ESPACO_{tamanho}")
+        existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
+        codigo_morador = ""
+        for _ in range(20):
+            codigo_morador = f"{secrets.randbelow(900000)+100000:06d}"
+            if codigo_morador not in existentes_cod:
+                break
+        nova = {
+            "box": str(box_req).zfill(2),
+            "bloco": payload.get("bloco",""),
+            "apartamento": payload.get("apartamento") or payload.get("apto",""),
+            "codigo": codigo_morador,
+            "codigo_retirada": codigo_morador,
+            "qr_code": f"SC-RET-{secrets.token_hex(6).upper()}",
+            "protocolo": payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}",
+            "data": payload.get("data") or datetime.now().strftime("%d/%m/%Y"),
+            "hora": payload.get("hora") or datetime.now().strftime("%H:%M"),
+            "created_at": payload.get("data_hora") or datetime.now().isoformat(),
+            "condominio_id": condominio_id,
+            "qr_valido": True,
+            "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
+        }
+        dados["lista"].append(nova); save_json(ARQ_DADOS, dados)
+        registrar_auditoria("ENTREGA_API", detalhes=nova["protocolo"], request=request)
+        return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "bloco": nova["bloco"]}
 
 @app.post("/api/retiradas")
 async def api_retiradas_compat(payload: dict, request: Request = None, api_key: dict = Depends(verificar_api_key)):
