@@ -331,22 +331,32 @@ async def dashboard_page(request: Request):
         return no_cache_html(get_path("dashboard.html"))
 
 def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None, dupla_face=False):
-    # ... seu código atual gera numeros ...
+    total_util = int(total_util or 0)
+    qtd_p = int(qtd_p or 0)
+    qtd_m = int(qtd_m or 0)
+    qtd_g = int(qtd_g or 0)
+    g_boxes = set()
+    if g_boxes_custom:
+        for g in g_boxes_custom:
+            g_boxes.add(str(g).zfill(2))
+    # Define tamanho de cada número: primeiro os G da lista, resto distribui P -> M -> G
     boxes = []
-    for b in todos_numeros:
-        tam = "G" if b in g_list else "M" if b in m_list else "P"
+    for i in range(1, total_util + 1):
+        b = f"{i:02d}"
+        if b in g_boxes:
+            tam = "G"
+        elif i <= qtd_p:
+            tam = "P"
+        elif i <= qtd_p + qtd_m:
+            tam = "M"
+        else:
+            tam = "G"
         if dupla_face:
             boxes.append({"numero": f"{b}-F", "tamanho": tam, "face": "F"})
             boxes.append({"numero": f"{b}-V", "tamanho": tam, "face": "V"})
         else:
             boxes.append({"numero": b, "tamanho": tam})
-    return boxes[:total_util] if not dupla_face else boxes
-def get_cond_config(cond_id):
-    conds = load_json(ARQ_CONDS, [])
-    for c in conds:
-        if str(c["id"])==str(cond_id):
-            return c
-    return None
+    return boxes
 
 def get_box_livre(dados, condominio_id="1", tamanho="P", cond_config=None):
     lista_filtrada = [x for x in dados.get("lista", []) if str(x.get("condominio_id"))==str(condominio_id)] if str(condominio_id)!="1" else dados.get("lista", [])
