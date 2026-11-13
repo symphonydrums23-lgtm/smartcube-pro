@@ -527,6 +527,13 @@ def registrar_tablet(payload: dict, request: Request, token: str = Depends(reque
     registrar_auditoria("REGISTROU_TABLET", detalhes=f"Tablet {tablet_id} Cond {condominio_id}", condominio_id=condominio_id, request=request)
     return {"ok": True, "tablet_token": novo_token, "condominio_id": condominio_id, "tablet_id": tablet_id}
 
+def normalizar_box(box):
+    # "05-F" ou "05-V" viram "05" - mesmo compartimento
+    box = str(box or "").strip().upper()
+    if "-" in box:
+        box = box.split("-")[0]
+    return box.zfill(2)
+
 @app.post("/api/tablet/entrega")
 async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = Depends(verificar_tablet_token)):
     with FILE_LOCK:
@@ -540,6 +547,11 @@ async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = 
         box_escolhido, _, foi_upgrade = get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)
         if not box_escolhido:
             raise HTTPException(status_code=409, detail=f"SEM_ESPACO_{tamanho_solicitado}")
+        # TRAVA DUPLA FACE: 05 já ocupado = 05 inteiro ocupado, não só F ou V
+        box_escolhido = normalizar_box(box_escolhido)
+        ocupado = any(normalizar_box(x.get("box")) == box_escolhido for x in dados.get("lista",[]))
+        if ocupado:
+            raise HTTPException(status_code=409, detail=f"Box {box_escolhido} já ocupado. Aguarde retirada pela porta interna.")
         existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
         existentes_qr = set(str(x.get("qr_code","")) for x in dados.get("lista",[]))
         codigo_morador = ""
@@ -555,6 +567,9 @@ async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = 
         protocolo_entregador = payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}"
         nova = {
             "box": str(box_escolhido).zfill(2),
+            "face": "dupla",
+            "porta_entrega": "F",
+            "porta_retirada": "V",
             "bloco": payload.get("bloco",""),
             "apartamento": payload.get("apartamento") or payload.get("apto",""),
             "codigo": codigo_morador,
@@ -574,7 +589,7 @@ async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = 
         }
         if foi_upgrade:
             for bx in (cond_config.get("boxes_lista",[]) if cond_config else []):
-                if bx["numero"]==box_escolhido:
+                if normalizar_box(bx["numero"]) == box_escolhido:
                     nova["tamanho_real"]=bx["tamanho"]
                     break
         else:
@@ -583,7 +598,6 @@ async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = 
         save_json(ARQ_DADOS, dados)
         registrar_auditoria("ENTREGA_TABLET", detalhes=f"Box {nova['box']} Bloco:{nova['bloco']} Apto:{nova['apartamento']} {tamanho_solicitado}->{nova['tamanho_real']} Prot {nova['protocolo']} Cond {condominio_id}", condominio_id=condominio_id, request=request)
         return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "codigo": codigo_morador, "qr_code": qr_morador, "tamanho_solicitado": tamanho_solicitado, "tamanho_real": nova["tamanho_real"], "upgrade": foi_upgrade, "bloco": nova["bloco"], "apartamento": nova["apartamento"]}
-
 @app.post("/api/tablet/retirada")
 async def tablet_retirada(payload: dict, request: Request = None, tablet: dict = Depends(verificar_tablet_token)):
     with FILE_LOCK:
@@ -602,6 +616,8 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
                 nova_lista.append(item)
         if not achado:
             raise HTTPException(status_code=404, detail="Código não encontrado ou já utilizado")
+        # Morador retira pela porta V (interna), mas libera o mesmo box 05
+        box_liberado = normalizar_box(achado.get("box"))
         try:
             expira = datetime.fromisoformat(achado.get("expira_em",""))
             if datetime.now() > expira:
@@ -617,11 +633,14 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
         achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y")
         achado["hora_retirada"] = datetime.now().strftime("%H:%M")
         achado["qr_valido"] = False
+        achado["box"] = box_liberado
+        achado["porta_retirada"] = "V"
+        achado["face"] = "dupla"
         dados["lista"]=nova_lista
         dados["historico"].append(achado)
         save_json(ARQ_DADOS, dados)
-        registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado['box']} Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", condominio_id=str(achado.get("condominio_id","")), request=request)
-        return {"ok": True, "box": achado["box"], "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
+        registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {box_liberado} liberado pela porta V Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", condominio_id=str(achado.get("condominio_id","")), request=request)
+        return {"ok": True, "box": box_liberado, "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
 # === CRIAR CONDOMINIO - CORRIGIDO SEM DUPLICACAO ===
 @app.post("/api/condominios")
 def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth)):
