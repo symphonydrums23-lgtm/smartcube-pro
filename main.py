@@ -177,11 +177,12 @@ def requer_auth(request: Request, authorization: str = Header(None)):
         raise HTTPException(status_code=401, detail="Token inválido")
     return t
 
-def requer_auth_opcional(request: Request, authorization: str = Header(None), token: str = Query(None)):
+def requer_auth_opcional(request: Request, authorization: str = Header(None)):
     t = ""
-    if authorization and "Bearer" in authorization: t = authorization.replace("Bearer ","").strip()
-    if not t: t = token or ""
-    if not t: t = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
+    if authorization and "Bearer" in authorization:
+        t = authorization.replace("Bearer ","").strip()
+    if not t:
+        t = request.cookies.get("sc_token") or request.headers.get("x-token") or ""
     if t and not is_token_valid(t):
         raise HTTPException(status_code=401, detail="Token inválido")
     return t or "tablet_public"
