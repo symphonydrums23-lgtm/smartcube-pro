@@ -205,20 +205,49 @@ def check_rate_limit(request: Request):
     return ip
 
 def registrar_auditoria(acao, usuario="sistema", detalhes="", condominio_id="", request: Request = None):
+    # Nunca apaga log antigo. Nuvem aguenta, arquivo local também até migrar.
     logs = load_json(ARQ_AUDIT, [])
     ip = "sistema"
-    if request and request.client: ip = request.client.host
-    logs.append({
-        "id": str(uuid.uuid4())[:8],
-        "data": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-        "timestamp": datetime.now().isoformat(),
-        "acao": acao,"usuario": usuario,"detalhes": detalhes,
-        "condominio_id": condominio_id,"ip": ip
-    })
-    if len(logs) > 1000:
-        logs = logs[-1000:]
-    save_json(ARQ_AUDIT, logs)
+    user_agent = ""
+    metodo = ""
+    caminho = ""
+    if request:
+        if request.client:
+            # Se estiver atrás de proxy na nuvem, pega o IP real
+            ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+        user_agent = request.headers.get("user-agent", "")[:200]
+        metodo = request.method
+        caminho = str(request.url.path)
 
+    # Se veio "sistema" mas tem token, tenta identificar quem é
+    if usuario in ("sistema", "", None) and request:
+        try:
+            tok = request.cookies.get("sc_token") or request.headers.get("x-token") or ""
+            if tok and tok in TOKENS_VALIDOS:
+                usuario = TOKENS_VALIDOS[tok].get("usuario", usuario) or usuario
+                if not condominio_id:
+                    condominio_id = TOKENS_VALIDOS[tok].get("condominio", "") or ""
+        except Exception:
+            pass
+
+    registro = {
+        "id": str(uuid.uuid4())[:8],
+        "data": now_brt().strftime("%d/%m/%Y %H:%M:%S"),
+        "timestamp": now_brt().isoformat(),
+        "acao": acao,
+        "usuario": usuario,
+        "detalhes": detalhes,
+        "condominio_id": condominio_id,
+        "ip": ip,
+        "user_agent": user_agent,
+        "metodo": metodo,
+        "caminho": caminho,
+    }
+    logs.append(registro)
+    save_json(ARQ_AUDIT, logs)
+    # Linha pronta pra nuvem (Cloud Logging / CloudWatch lê esse print como JSON)
+    print(f"[AUDIT] {registro}", flush=True)
+    return registro
 @app.get("/api/health")
 def health():
     return {"ok": True, "status": "online", "versao": "v5.8.5-build-11-11-2026-API-LIVRE-CONDFY", "time": datetime.now().isoformat()}
