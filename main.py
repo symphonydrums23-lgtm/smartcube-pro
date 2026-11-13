@@ -272,6 +272,7 @@ def limpar_retencao():
         pass
 @app.get("/api/health")
 def health():
+    limpar_retencao()
     return {"ok": True, "status": "online", "versao": "v5.8.5-build-11-11-2026-API-LIVRE-CONDFY", "time": datetime.now().isoformat()}
 
 @app.get("/api/auditoria")
