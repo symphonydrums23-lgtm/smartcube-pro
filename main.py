@@ -509,6 +509,27 @@ def get_cond(cond_id: str, token: str = Depends(requer_auth)):
             c["qtd_moradores"] = len([m for m in mors if str(m.get("condominio")) == str(cond_id)])
             return c
     raise HTTPException(404, "Condomínio não encontrado")
+@app.post("/api/tablet/registrar")
+def registrar_tablet(payload: dict, request: Request, token: str = Depends(requer_auth)):
+    condominio_id = str(payload.get("condominio_id") or payload.get("condominio") or "").strip()
+    tablet_id = str(payload.get("tablet_id") or f"tablet-{condominio_id}").strip()
+    if not condominio_id or condominio_id == "1":
+        raise HTTPException(400, "Informe o condominio_id real. '1' não é permitido.")
+    tokens = load_json(ARQ_TABLET_TOKENS, {})
+    for k, v in tokens.items():
+        if str(v.get("condominio_id")) == condominio_id and str(v.get("tablet_id")) == tablet_id:
+            return {"ok": True, "tablet_token": k, "condominio_id": condominio_id, "tablet_id": tablet_id}
+    novo_token = "tb_" + secrets.token_urlsafe(32)
+    tokens[novo_token] = {
+        "condominio_id": condominio_id,
+        "tablet_id": tablet_id,
+        "criado_em": now_brt().isoformat(),
+        "criado_por": TOKENS_VALIDOS.get(token, {}).get("user", "admin")
+    }
+    save_json(ARQ_TABLET_TOKENS, tokens)
+    registrar_auditoria("REGISTROU_TABLET", detalhes=f"Tablet {tablet_id} Cond {condominio_id}", condominio_id=condominio_id, request=request)
+    return {"ok": True, "tablet_token": novo_token, "condominio_id": condominio_id, "tablet_id": tablet_id}
+
 @app.post("/api/tablet/entrega")
 async def tablet_entrega(payload: dict, request: Request = None):
     with FILE_LOCK:
