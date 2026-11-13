@@ -285,7 +285,7 @@ def get_cond_config(cond_id):
 def get_box_livre(dados, condominio_id="1", tamanho="P", cond_config=None):
     lista_filtrada = [x for x in dados.get("lista", []) if str(x.get("condominio_id"))==str(condominio_id)] if str(condominio_id)!="1" else dados.get("lista", [])
     ocupados = set()
-        for x in lista_filtrada:
+    for x in lista_filtrada:
         try:
             b = str(x.get("box","")).strip().upper()
             if not b: continue
