@@ -61,7 +61,7 @@ ALT_TEMPLATES = os.path.join(BASE_DIR, "modelos")
 if not os.path.exists(TEMPLATES_DIR) and os.path.exists(ALT_TEMPLATES):
     TEMPLATES_DIR = ALT_TEMPLATES
 
-FILE_LOCK = threading.Lock()
+FILE_LOCK = threading.RLock()
 BOX_TABLET_RESERVADO = "03"
 BOXES_TABLET_RESERVADOS = {"03", "3", "03F", "03V", "03_F", "03_V", "03-F", "03-V"}
 
