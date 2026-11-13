@@ -460,34 +460,45 @@ async def tablet_entrega(payload: dict, request: Request = None):
         save_json(ARQ_DADOS, dados)
         registrar_auditoria("ENTREGA_TABLET", detalhes=f"Box {nova['box']} Bloco:{nova['bloco']} Apto:{nova['apartamento']} {tamanho_solicitado}->{nova['tamanho_real']} Prot {nova['protocolo']} Cond {condominio_id}", condominio_id=condominio_id, request=request)
         return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "codigo": codigo_morador, "qr_code": qr_morador, "tamanho_solicitado": tamanho_solicitado, "tamanho_real": nova["tamanho_real"], "upgrade": foi_upgrade, "bloco": nova["bloco"], "apartamento": nova["apartamento"]}
-    for item in dados.get("lista",[]):
-        if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
-            achado=item
-        else:
-            nova_lista.append(item)
-    if not achado:
-        raise HTTPException(status_code=404, detail="Código não encontrado ou já utilizado")
-    try:
-        expira = datetime.fromisoformat(achado.get("expira_em",""))
-        if datetime.now() > expira:
-            achado["qr_valido"]=False
-            dados["lista"]=nova_lista
-            dados["historico"].append(achado)
-            save_json(ARQ_DADOS, dados)
-            raise HTTPException(status_code=410, detail="QR Code expirado")
-    except HTTPException:
-        raise
-    except:
-        pass
-    achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y")
-    achado["hora_retirada"] = datetime.now().strftime("%H:%M")
-    achado["qr_valido"] = False
-    dados["lista"]=nova_lista
-    dados["historico"].append(achado)
-    save_json(ARQ_DADOS, dados)
-    registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado['box']} Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", request=request)
-    return {"ok": True, "box": achado["box"], "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
 
+@app.post("/api/tablet/retirada")
+async def tablet_retirada(payload: dict, request: Request = None):
+    with FILE_LOCK:
+        dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+        codigo = str(payload.get("codigo","")).strip()
+        if not codigo:
+            raise HTTPException(status_code=400, detail="Código obrigatório")
+        if codigo.startswith("SC-") and not codigo.startswith("SC-RET-"):
+            raise HTTPException(status_code=403, detail="Protocolo de entregador não abre box. Use código do morador.")
+        achado = None
+        nova_lista = []
+        for item in dados.get("lista",[]):
+            if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
+                achado=item
+            else:
+                nova_lista.append(item)
+        if not achado:
+            raise HTTPException(status_code=404, detail="Código não encontrado ou já utilizado")
+        try:
+            expira = datetime.fromisoformat(achado.get("expira_em",""))
+            if datetime.now() > expira:
+                achado["qr_valido"]=False
+                dados["lista"]=nova_lista
+                dados["historico"].append(achado)
+                save_json(ARQ_DADOS, dados)
+                raise HTTPException(status_code=410, detail="QR Code expirado")
+        except HTTPException:
+            raise
+        except:
+            pass
+        achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y")
+        achado["hora_retirada"] = datetime.now().strftime("%H:%M")
+        achado["qr_valido"] = False
+        dados["lista"]=nova_lista
+        dados["historico"].append(achado)
+        save_json(ARQ_DADOS, dados)
+        registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado['box']} Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", request=request)
+        return {"ok": True, "box": achado["box"], "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
 # === CRIAR CONDOMINIO - CORRIGIDO SEM DUPLICACAO ===
 @app.post("/api/condominios")
 def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth)):
