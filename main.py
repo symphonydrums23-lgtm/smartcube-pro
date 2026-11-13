@@ -921,6 +921,7 @@ def auth_login(payload: dict, request: Request):
         resp.set_cookie(key="sc_token", value=token, httponly=True, max_age=28800, samesite="Lax", path="/")
         return resp
     LOGIN_TENTATIVAS[ip].append(time.time())
+    registrar_auditoria("LOGIN_FALHA", usuario=usuario, detalhes=f"Tentativa falha IP {ip}", request=request)
     raise HTTPException(401, "Usuário ou senha inválido")
 
 @app.get("/api/auth/verificar")
