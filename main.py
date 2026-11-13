@@ -255,28 +255,17 @@ async def dashboard_page(request: Request):
     try: return templates.TemplateResponse("dashboard.html", {"request": request})
     except: return no_cache_html(get_path("dashboard.html"))
 
-def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None):
-    todos_numeros = []
-    i=1
-    while len(todos_numeros) < total_util + 1:
-        s = f"{i:02d}"
-        if s not in BOXES_TABLET_RESERVADOS:
-            todos_numeros.append(s)
-        i+=1
-        if i>100: break
-    if g_boxes_custom:
-        g_list = [b.zfill(2) for b in g_boxes_custom if b.zfill(2) in todos_numeros][:qtd_g]
-    else:
-        g_list = todos_numeros[-qtd_g:] if qtd_g>0 else []
-    m_list = todos_numeros[-(qtd_g+qtd_m):-qtd_g] if qtd_m>0 and qtd_g>0 else (todos_numeros[-qtd_m:] if qtd_m>0 else [])
+def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None, dupla_face=False):
+    # ... seu código atual gera numeros ...
     boxes = []
     for b in todos_numeros:
-        if b in g_list: tam="G"
-        elif b in m_list: tam="M"
-        else: tam="P"
-        boxes.append({"numero": b, "tamanho": tam})
-    return boxes[:total_util]
-
+        tam = "G" if b in g_list else "M" if b in m_list else "P"
+        if dupla_face:
+            boxes.append({"numero": f"{b}-F", "tamanho": tam, "face": "F"})
+            boxes.append({"numero": f"{b}-V", "tamanho": tam, "face": "V"})
+        else:
+            boxes.append({"numero": b, "tamanho": tam})
+    return boxes[:total_util] if not dupla_face else boxes
 def get_cond_config(cond_id):
     conds = load_json(ARQ_CONDS, [])
     for c in conds:
