@@ -367,7 +367,6 @@ def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None, dupl
     if g_boxes_custom:
         for g in g_boxes_custom:
             g_boxes.add(str(g).zfill(2))
-    # Define tamanho de cada número: primeiro os G da lista, resto distribui P -> M -> G
     boxes = []
     for i in range(1, total_util + 1):
         b = f"{i:02d}"
@@ -380,12 +379,10 @@ def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None, dupl
         else:
             tam = "G"
         if dupla_face:
-            boxes.append({"numero": f"{b}-F", "tamanho": tam, "face": "F"})
-            boxes.append({"numero": f"{b}-V", "tamanho": tam, "face": "V"})
+            boxes.append({"numero": b, "tamanho": tam, "face": "dupla", "porta_entrega": "F", "porta_retirada": "V"})
         else:
-            boxes.append({"numero": b, "tamanho": tam})
+            boxes.append({"numero": b, "tamanho": tam, "face": "unica"})
     return boxes
-
 def get_box_livre(dados, condominio_id="1", tamanho="P", cond_config=None):
     lista_filtrada = [x for x in dados.get("lista", []) if str(x.get("condominio_id"))==str(condominio_id)] if str(condominio_id)!="1" else dados.get("lista", [])
     ocupados = set()
