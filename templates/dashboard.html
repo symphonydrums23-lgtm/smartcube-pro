@@ -182,6 +182,12 @@ body{background:#F5F6FA;display:flex;min-height:100vh}
 <div id="modalNovoOperador" class="modal" onclick="if(event.target==this) fecharNovoOperador()"><div class="modal-box" style="max-width:480px"><div class="modal-head"><b>🏢 Novo Operador / Franqueado</b><button class="btn btn-b" onclick="fecharNovoOperador()">✕</button></div><div style="padding:18px"><div><span class="label">Nome do Operador *</span><input id="opNome" class="input" placeholder="Ex: Smart Cube Taguatinga"></div><div style="margin-top:12px"><span class="label">CNPJ / CPF</span><input id="opCnpj" class="input"></div><div style="margin-top:12px"><span class="label">Telefone / WhatsApp</span><input id="opTel" class="input"></div><div style="margin-top:12px"><span class="label">Cidade / Região</span><input id="opCidade" class="input" placeholder="Taguatinga-DF"></div><button class="btn btn-o" style="width:100%;padding:12px;margin-top:18px" onclick="salvarNovoOperador()">Salvar Operador</button></div></div></div>
 <script>
 const API_BASE = "https://smartcube-pro-1.onrender.com";
+let DADOS = null;
+let COND_ID = '1';
+let HIST_CACHE = [];
+let HIST_TIPO = 'todos';
+let DADOS_FILTRADOS = [];
+let TIPO_ATUAL = '';
 function authHeader(){const t=localStorage.getItem('sc_token');return t?{'Authorization':'Bearer '+t}:{};}
 function authHeadersJson(){return {...authHeader(),'Content-Type':'application/json'};}
 async function checkTokenValido(){try{let r=await fetch(API_BASE+'/api/auth/verificar',{headers:authHeader()});if(!r.ok){logout();}}catch{logout();}}
