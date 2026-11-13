@@ -253,9 +253,18 @@ def health():
     return {"ok": True, "status": "online", "versao": "v5.8.5-build-11-11-2026-API-LIVRE-CONDFY", "time": datetime.now().isoformat()}
 
 @app.get("/api/auditoria")
-def listar_auditoria(request: Request, token: str = Depends(requer_auth)):
+def listar_auditoria(request: Request, token: str = Depends(requer_auth), condominio_id: str = "", limite: int = 200):
+    # 2.3 - Só admin vê auditoria completa
+    info_token = TOKENS_VALIDOS.get(token, {})
+    usuario = info_token.get("user", "") or info_token.get("usuario", "")
+    if usuario not in ("admin", ADMIN_USER):
+        raise HTTPException(status_code=403, detail="Acesso à auditoria restrito ao admin")
+
     logs = load_json(ARQ_AUDIT, [])
-    return logs[::-1][:200]
+    # Filtra por condomínio se pedir, senão traz tudo mas só pro admin
+    if condominio_id:
+        logs = [l for l in logs if str(l.get("condominio_id","")) == str(condominio_id)]
+    return logs[::-1][:min(limite, 500)]
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
