@@ -829,10 +829,11 @@ def excluir_key_integracao(key_id: str, request: Request, token: str = Depends(r
     return {"ok": True}
 
 @app.get("/api/moradores")
-def listar_mors(condominio: str = Query("1"), token: str = Depends(requer_auth)):
+def listar_mors(condominio: str = Query(...), token: str = Depends(requer_auth)):
+    if not condominio or str(condominio) == "1":
+        raise HTTPException(status_code=400, detail="Informe o condominio_id. '1' (todos) não é permitido.")
     mors = load_json(ARQ_MORS, [])
-    if condominio!="1": return [m for m in mors if str(m.get("condominio"))==str(condominio)]
-    return mors
+    return [m for m in mors if str(m.get("condominio")) == str(condominio)]
 
 @app.post("/api/moradores")
 def criar_mor(payload: dict, request: Request = None, token: str = Depends(requer_auth)):
