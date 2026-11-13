@@ -813,8 +813,10 @@ def listar_keys_integracao(token: str = Depends(requer_auth)):
 @app.delete("/api/integracao/{key_id}")
 def excluir_key_integracao(key_id: str, request: Request, token: str = Depends(requer_auth)):
     keys = load_json(ARQ_KEYS, [])
+    alvo = next((k for k in keys if str(k.get("id")) == str(key_id) or str(k.get("api_key")) == str(key_id)), None)
     keys = [k for k in keys if str(k.get("id")) != str(key_id) and str(k.get("api_key")) != str(key_id)]
     save_json(ARQ_KEYS, keys)
+    registrar_auditoria("EXCLUIU_API_KEY", detalhes=f"Excluiu key {alvo.get('nome') if alvo else key_id}", condominio_id=",".join(alvo.get("condominios", [])) if alvo else "", request=request)
     return {"ok": True}
 
 @app.get("/api/moradores")
