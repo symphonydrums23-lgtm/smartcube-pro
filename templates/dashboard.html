@@ -667,30 +667,7 @@ function atualizarBlocosResumo(){
   const el=document.getElementById('nBlocosResumo');
   if(el) el.innerText=q+' bloco'+(q>1?'s':'');
 }
-  };
-  syncColor('wlCorFundo','wlCorFundoTxt');
-  syncColor('wlCorQr','wlCorQrTxt');
-  syncColor('wlCorBotao','wlCorBotaoTxt');
-  syncColor('wlCorFrase','wlCorFraseTxt');
-  syncColor('wlCorSair','wlCorSairTxt');
 
-  const setupDrop = (boxIndex) => {
-    const fileId = boxIndex===1?'wlFile1':'wlFile2';
-    const prevId = boxIndex===1?'wlPrev1':'wlPrev2';
-    const container = document.getElementById(fileId).parentElement;
-    ['dragenter','dragover'].forEach(ev=>{
-      container.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); container.style.borderColor='#FF6A00'; container.style.background='#FFF7ED'; });
-    });
-    ['dragleave','drop'].forEach(ev=>{
-      container.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); container.style.borderColor='#CBD5E1'; container.style.background='#F8FAFC'; });
-    });
-    container.addEventListener('drop', e=>{
-      const files = e.dataTransfer.files;
-      if(files.length){ document.getElementById(fileId).files = files; wlPreviewLogo(document.getElementById(fileId), prevId); }
-    });
-  };
-  setupDrop(1); setupDrop(2);
-})();
 let OPERADORES_CACHE = JSON.parse(localStorage.getItem('sc_operadores')||'[]');
 function novoOperador(){document.getElementById('opNome').value='';document.getElementById('opCnpj').value='';document.getElementById('opTel').value='';document.getElementById('opCidade').value='';document.getElementById('modalNovoOperador').style.display='flex';}
 function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
@@ -825,14 +802,10 @@ async function salvarNovoCond(){
 }
 
 // === FIX FRANQUIA v3 DEFINITIVO - NÃO TRAVA MAIS ===
-function salvarNovoOperador()
+async function salvarNovoOperador(){
   try{
-    const modal = document.querySelector('#modalOperador') || document.querySelector('.modal') || document.body;
-    const inputs = document.querySelectorAll('#modalOperador input, .modal input, input[placeholder]');
-    
-    // Pega na ordem que aparece no seu print: Nome, CNPJ/CPF, Telefone, Cidade
+    const todosInputs = Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null);
     let nome="", cnpj="", telefone="", cidade="";
-    const todosInputs = Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null); // só visíveis
     
     if(todosInputs.length >= 4){
       nome = todosInputs[todosInputs.length-4]?.value || "";
@@ -848,8 +821,6 @@ function salvarNovoOperador()
     const token = localStorage.getItem('sc_token') || localStorage.getItem('token') || "";
     if(!token) { alert('ERRO: Você não está logado. Faça login de novo.'); return; }
 
-    console.log('Enviando:', {nome, cnpj, telefone, cidade});
-    
     const resp = await fetch('/api/operadores', {
       method: 'POST',
       headers: {
@@ -860,7 +831,6 @@ function salvarNovoOperador()
     });
     
     const texto = await resp.text();
-    console.log('Resposta:', resp.status, texto);
     
     if(resp.ok){
       alert('✅ Operador '+nome+' criado com sucesso!');
@@ -873,17 +843,6 @@ function salvarNovoOperador()
     console.error(err);
   }
 }
-
-// Corrige o botão automaticamente
-setTimeout(()=>{
-  document.querySelectorAll('button').forEach(b=>{
-    if(b.textContent.toLowerCase().includes('salvar operador')){
-      b.type = 'button';
-      b.onclick = (e)=>{ e.preventDefault(); salvarOperador(); return false; };
-      console.log('Botão corrigido!');
-    }
-  });
-}, 500);
 // === FIM V3 ===
 
 document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
@@ -908,7 +867,7 @@ function confirmarExcluirCond(){}
 function novoOperador(){ document.getElementById('modalNovoOperador').style.display='flex'; }
 function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
 
-function salvarNovoOperador()
+async function salvarNovoOperador(){
   let nome = document.getElementById('opNome')?.value?.trim() || '';
   if(!nome){ alert('Digite o nome'); return; }
   let token = localStorage.getItem('sc_token') || '';
@@ -925,7 +884,6 @@ function salvarNovoOperador()
     else alert('Erro '+r.status+': '+t);
   }catch(e){ alert(e.message); }
 }
-window.salvarNovoOperador = salvarOperador;
 
 // Sync cores White Label - color picker <-> texto
 function syncColor(pickerId, txtId){
@@ -944,11 +902,11 @@ async function salvarContrato(){
   if(!COND_ID) return alert('Abra um condomínio primeiro');
   const body = {
     armario_num: document.getElementById('cArm')?.value || '',
-    endereco: document.getElementById('cEnd')?.value || '', // cEnd
-    valor_mensal: document.getElementById('cValorMensal')?.value || '', // cValor
+    endereco: document.getElementById('cEnd')?.value || '',
+    valor_mensal: document.getElementById('cValorMensal')?.value || '',
     valor_instalacao: document.getElementById('cValorInst')?.value || '',
     status: document.getElementById('cAtivo')?.value || 'ativo',
-    vencimento: document.getElementById('cVenc')?.value || '', // cFim
+    vencimento: document.getElementById('cVenc')?.value || '',
     data_inicio: document.getElementById('cDataInicio')?.value || '',
     periodo: document.getElementById('cPeriodo')?.value || '12 meses',
     operador: document.getElementById('cOperador')?.value || ''
@@ -960,7 +918,7 @@ async function salvarContrato(){
   }catch(e){ alert('Erro: '+e.message); }
 }
 
-// Filtro de data do modal - agora funciona
+// Filtro de data do modal
 function aplicarFiltroData(){
   const de = document.getElementById('dataDe')?.value;
   const ate = document.getElementById('dataAte')?.value;
@@ -977,12 +935,11 @@ function aplicarFiltroData(){
   else renderHistFiltrado(filtrado);
 }
 function renderHistFiltrado(lista){
-  // reusa renderHist mas com lista filtrada
   HIST_CACHE = lista.map(x=>({...x,_tipo: x.data_retirada?'retirada':'entrega'}));
   renderHist();
 }
 
-// Export CSV - usa DADOS_FILTRADOS ou lista atual
+// Export CSV
 function gerarCSV(){
   const lista = DADOS_FILTRADOS.length ? DADOS_FILTRADOS : (DADOS?.lista||[]);
   if(!lista.length) return alert('Nada pra exportar');
@@ -991,19 +948,8 @@ function gerarCSV(){
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='relatorio-smartcube.csv'; a.click();
 }
 
-// Stubs que faltavam - pra não dar SyntaxError / is not a function
-function novoCond(){ document.getElementById('modalNovoCond').style.display='flex'; atualizarPreset(); }
-function fecharNovoCond(){ document.getElementById('modalNovoCond').style.display='none'; }
-function toggleBlocos(){ const on = document.getElementById('nTemBlocos')?.checked; document.getElementById('nBlocosGroup').style.display = on?'grid':'none'; atualizarBlocosResumo(); }
-function atualizarBlocosResumo(){ const q = document.getElementById('nQtdBlocos')?.value||1; const n = document.getElementById('nNomesBlocos')?.value||'A'; document.getElementById('nBlocosResumo').innerText = `${q} bloco(s) • ${n}`; }
-function salvarNovoCond(){ alert('Use a rota /api/condominios - implemente salvarNovoCond no backend se ainda não existir'); }
-function novoOperador(){ document.getElementById('modalNovoOperador').style.display='flex'; }
-function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
-function salvarNovoOperador(){ alert('Salvar operador - conectar em /api/operadores'); }
-function excluirCondModal(id,nome){ if(confirm(`Excluir ${nome}?`)) fetchAuth(API_BASE+'/api/condominios/'+id,{method:'DELETE'}).then(()=>carregarConds()); }
 function gerarLinkContrato(){ const c = document.getElementById('contCondSelect')?.value||''; document.getElementById('contLink').value = location.origin+'/contrato?cond='+c; }
 function copiarLinkContrato(){ navigator.clipboard.writeText(document.getElementById('contLink').value); alert('Copiado'); }
-function carregarOperadores(){ /* já existe lista, mantém */ }
 </script>
 </body>
 </html>
