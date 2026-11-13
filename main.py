@@ -194,6 +194,15 @@ def verificar_api_key(request: Request, x_api_key: str = Header(None)):
     k = next((x for x in keys if x.get("api_key")==x_api_key), None)
     if not k:
         raise HTTPException(401, "API Key inválida")
+    # Se a key tem condomínios permitidos, trava por eles
+    conds_permitidos = k.get("condominios", [])
+    if conds_permitidos:
+        # Pega condominio_id do body/query se tiver, pra validar depois na rota
+        request.state.api_key_conds = conds_permitidos
+        request.state.api_key_nome = k.get("nome", "")
+    else:
+        request.state.api_key_conds = []
+        request.state.api_key_nome = k.get("nome", "")
     return k
 
 def check_rate_limit(request: Request):
