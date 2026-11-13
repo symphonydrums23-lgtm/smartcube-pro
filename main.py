@@ -260,10 +260,14 @@ async def entrega_page(request: Request): return no_cache_html(get_path("entrega
 async def dashboard_page(request: Request):
     auth = request.headers.get("authorization") or ""
     token = auth.replace("Bearer ", "").strip() if auth else ""
-    if not token: token = request.cookies.get("sc_token") or request.query_params.get("token") or request.headers.get("x-token") or ""
-    if not token or not is_token_valid(token): return RedirectResponse(url="/login", status_code=302)
-    try: return templates.TemplateResponse("dashboard.html", {"request": request})
-    except: return no_cache_html(get_path("dashboard.html"))
+    if not token:
+        token = request.cookies.get("sc_token") or ""
+    if not token or not is_token_valid(token):
+        return RedirectResponse(url="/login", status_code=302)
+    try:
+        return templates.TemplateResponse("dashboard.html", {"request": request})
+    except:
+        return no_cache_html(get_path("dashboard.html"))
 
 def gerar_boxes_lista(total_util, qtd_p, qtd_m, qtd_g, g_boxes_custom=None, dupla_face=False):
     # ... seu código atual gera numeros ...
