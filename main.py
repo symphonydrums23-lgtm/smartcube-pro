@@ -987,11 +987,16 @@ def app_login(payload: dict, request: Request):
 @app.get("/api/app/relatorios")
 def app_relatorios(token_data: dict = Depends(verificar_app_token)):
     dados = load_json(ARQ_DADOS, {"lista":[],"historico":[]})
-    bloco=token_data.get("bloco",""); apto=token_data.get("apto",""); role=token_data.get("role","morador")
+    bloco=token_data.get("bloco",""); apto=token_data.get("apto","")
+    condominio=token_data.get("condominio","")
+    role=token_data.get("role","morador")
     todas = dados.get("lista",[])+dados.get("historico",[])
+    # SEMPRE filtra por condomínio do token, nunca por parâmetro
+    todas = [x for x in todas if str(x.get("condominio_id"))==str(condominio)]
     if role=="morador":
         filtradas=[x for x in todas if str(x.get("bloco","")).lower()==bloco.lower() and str(x.get("apartamento") or "").lower()==apto.lower()]
     else:
+        # operador/síndico só vê o próprio condomínio também
         filtradas=todas
     return filtradas[::-1][:200]
 
