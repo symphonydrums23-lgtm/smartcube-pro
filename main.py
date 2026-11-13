@@ -186,6 +186,15 @@ def requer_auth_opcional(request: Request, authorization: str = Header(None), to
         raise HTTPException(status_code=401, detail="Token inválido")
     return t or "tablet_public"
 
+def verificar_api_key(request: Request, x_api_key: str = Header(None)):
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key obrigatória")
+    keys = load_json(ARQ_KEYS, [])
+    k = next((x for x in keys if x.get("api_key")==x_api_key), None)
+    if not k:
+        raise HTTPException(401, "API Key inválida")
+    return k
+
 def check_rate_limit(request: Request):
     ip = request.client.host if request.client else "unknown"
     now = time.time()
@@ -397,70 +406,60 @@ def get_cond(cond_id: str, token: str = Depends(requer_auth)):
 
 @app.post("/api/tablet/entrega")
 async def tablet_entrega(payload: dict, request: Request = None):
-    dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
-    condominio_id = str(payload.get("condominio_id","1"))
-    tamanho_solicitado = str(payload.get("tamanho","P")).upper() or "P"
-    cond_config = get_cond_config(condominio_id)
-    if condominio_id=="1":
-        raise HTTPException(status_code=400, detail="Tablet não travado. Configure o condomínio no tablet.")
-    box_escolhido, tamanho_final, foi_upgrade = None, tamanho_solicitado, False
-    box_escolhido, _, foi_upgrade = get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)
-    if not box_escolhido:
-        raise HTTPException(status_code=409, detail=f"SEM_ESPACO_{tamanho_solicitado}")
-    existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
-    existentes_qr = set(str(x.get("qr_code","")) for x in dados.get("lista",[]))
-    codigo_morador = ""
-    for _ in range(20):
-        codigo_morador = f"{secrets.randbelow(900000)+100000:06d}"
-        if codigo_morador not in existentes_cod:
-            break
-    qr_morador = ""
-    for _ in range(20):
-        qr_morador = f"SC-RET-{secrets.token_hex(6).upper()}"
-        if qr_morador not in existentes_qr:
-            break
-    protocolo_entregador = payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}"
-    nova = {
-        "box": str(box_escolhido).zfill(2),
-        "bloco": payload.get("bloco",""),
-        "apartamento": payload.get("apartamento") or payload.get("apto",""),
-        "codigo": codigo_morador,
-        "codigo_retirada": codigo_morador,
-        "qr_code": qr_morador,
-        "protocolo": protocolo_entregador,
-        "data": datetime.now().strftime("%d/%m/%Y"),
-        "hora": datetime.now().strftime("%H:%M"),
-        "nome": payload.get("nome",""),
-        "created_at": datetime.now().isoformat(),
-        "condominio_id": condominio_id,
-        "tamanho_solicitado": tamanho_solicitado,
-        "tamanho_real": tamanho_final if not foi_upgrade else get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)[1],
-        "upgrade": foi_upgrade,
-        "qr_valido": True,
-        "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
-    }
-    if foi_upgrade:
-        for bx in (cond_config.get("boxes_lista",[]) if cond_config else []):
-            if bx["numero"]==box_escolhido:
-                nova["tamanho_real"]=bx["tamanho"]
+    with FILE_LOCK:
+        dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+        condominio_id = str(payload.get("condominio_id","1"))
+        tamanho_solicitado = str(payload.get("tamanho","P")).upper() or "P"
+        cond_config = get_cond_config(condominio_id)
+        if condominio_id=="1":
+            raise HTTPException(status_code=400, detail="Tablet não travado. Configure o condomínio no tablet.")
+        box_escolhido, tamanho_final, foi_upgrade = None, tamanho_solicitado, False
+        box_escolhido, _, foi_upgrade = get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)
+        if not box_escolhido:
+            raise HTTPException(status_code=409, detail=f"SEM_ESPACO_{tamanho_solicitado}")
+        existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
+        existentes_qr = set(str(x.get("qr_code","")) for x in dados.get("lista",[]))
+        codigo_morador = ""
+        for _ in range(20):
+            codigo_morador = f"{secrets.randbelow(900000)+100000:06d}"
+            if codigo_morador not in existentes_cod:
                 break
-    else:
-        nova["tamanho_real"]=tamanho_solicitado
-    dados["lista"].append(nova)
-    save_json(ARQ_DADOS, dados)
-    registrar_auditoria("ENTREGA_TABLET", detalhes=f"Box {nova['box']} Bloco:{nova['bloco']} Apto:{nova['apartamento']} {tamanho_solicitado}->{nova['tamanho_real']} Prot {nova['protocolo']} Cond {condominio_id}", condominio_id=condominio_id, request=request)
-    return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "codigo": codigo_morador, "qr_code": qr_morador, "tamanho_solicitado": tamanho_solicitado, "tamanho_real": nova["tamanho_real"], "upgrade": foi_upgrade, "bloco": nova["bloco"], "apartamento": nova["apartamento"]}
-
-@app.post("/api/tablet/retirada")
-async def tablet_retirada(payload: dict, request: Request = None):
-    dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
-    codigo = str(payload.get("codigo","")).strip()
-    if not codigo:
-        raise HTTPException(status_code=400, detail="Código obrigatório")
-    if codigo.startswith("SC-") and not codigo.startswith("SC-RET-"):
-        raise HTTPException(status_code=403, detail="Protocolo de entregador não abre box. Use código do morador.")
-    achado = None
-    nova_lista = []
+        qr_morador = ""
+        for _ in range(20):
+            qr_morador = f"SC-RET-{secrets.token_hex(6).upper()}"
+            if qr_morador not in existentes_qr:
+                break
+        protocolo_entregador = payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}"
+        nova = {
+            "box": str(box_escolhido).zfill(2),
+            "bloco": payload.get("bloco",""),
+            "apartamento": payload.get("apartamento") or payload.get("apto",""),
+            "codigo": codigo_morador,
+            "codigo_retirada": codigo_morador,
+            "qr_code": qr_morador,
+            "protocolo": protocolo_entregador,
+            "data": datetime.now().strftime("%d/%m/%Y"),
+            "hora": datetime.now().strftime("%H:%M"),
+            "nome": payload.get("nome",""),
+            "created_at": datetime.now().isoformat(),
+            "condominio_id": condominio_id,
+            "tamanho_solicitado": tamanho_solicitado,
+            "tamanho_real": tamanho_final if not foi_upgrade else get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)[1],
+            "upgrade": foi_upgrade,
+            "qr_valido": True,
+            "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
+        }
+        if foi_upgrade:
+            for bx in (cond_config.get("boxes_lista",[]) if cond_config else []):
+                if bx["numero"]==box_escolhido:
+                    nova["tamanho_real"]=bx["tamanho"]
+                    break
+        else:
+            nova["tamanho_real"]=tamanho_solicitado
+        dados["lista"].append(nova)
+        save_json(ARQ_DADOS, dados)
+        registrar_auditoria("ENTREGA_TABLET", detalhes=f"Box {nova['box']} Bloco:{nova['bloco']} Apto:{nova['apartamento']} {tamanho_solicitado}->{nova['tamanho_real']} Prot {nova['protocolo']} Cond {condominio_id}", condominio_id=condominio_id, request=request)
+        return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "codigo": codigo_morador, "qr_code": qr_morador, "tamanho_solicitado": tamanho_solicitado, "tamanho_real": nova["tamanho_real"], "upgrade": foi_upgrade, "bloco": nova["bloco"], "apartamento": nova["apartamento"]}
     for item in dados.get("lista",[]):
         if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
             achado=item
