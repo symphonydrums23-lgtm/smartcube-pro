@@ -248,6 +248,28 @@ def registrar_auditoria(acao, usuario="sistema", detalhes="", condominio_id="", 
     # Linha pronta pra nuvem (Cloud Logging / CloudWatch lê esse print como JSON)
     print(f"[AUDIT] {registro}", flush=True)
     return registro
+
+def limpar_retencao():
+    # 3.3 - LGPD: anonimiza histórico com mais de 90 dias
+    try:
+        dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+        limite = datetime.now() - timedelta(days=90)
+        mudou = False
+        for h in dados.get("historico", []):
+            try:
+                dt = datetime.fromisoformat(h.get("created_at",""))
+            except:
+                continue
+            if dt < limite and h.get("codigo_retirada"):
+                h["codigo_retirada"] = "***"
+                h["codigo"] = "***"
+                h["qr_code"] = "***"
+                h["nome"] = "***"
+                mudou = True
+        if mudou:
+            save_json(ARQ_DADOS, dados)
+    except Exception:
+        pass
 @app.get("/api/health")
 def health():
     return {"ok": True, "status": "online", "versao": "v5.8.5-build-11-11-2026-API-LIVRE-CONDFY", "time": datetime.now().isoformat()}
