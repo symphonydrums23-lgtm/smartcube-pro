@@ -527,6 +527,22 @@ def registrar_tablet(payload: dict, request: Request, token: str = Depends(reque
     registrar_auditoria("REGISTROU_TABLET", detalhes=f"Tablet {tablet_id} Cond {condominio_id}", condominio_id=condominio_id, request=request)
     return {"ok": True, "tablet_token": novo_token, "condominio_id": condominio_id, "tablet_id": tablet_id}
 
+def get_cond_config(condominio_id):
+    conds = load_json(ARQ_CONDS, [])
+    c = next((x for x in conds if str(x.get("id")) == str(condominio_id)), None)
+    if not c:
+        return {
+            "total_boxes": 16,
+            "total_util": 15,
+            "qtd_p": 13,
+            "qtd_m": 1,
+            "qtd_g": 1,
+            "boxes_lista": gerar_boxes_lista(15, 13, 1, 1, ["09"]),
+            "G_boxes": ["09"],
+            "dupla_face": False
+        }
+    return c
+
 def normalizar_box(box):
     # "05-F" ou "05-V" viram "05" - mesmo compartimento
     box = str(box or "").strip().upper()
@@ -776,25 +792,6 @@ def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: 
             save_json(ARQ_CONDS, conds)
             return c
     raise HTTPException(404)
-
-@app.delete("/api/condominios")
-def deletar_cond(id: str = Query(...), request: Request = None, token: str = Depends(requer_auth)):
-    conds = load_json(ARQ_CONDS, [])
-    conds = [c for c in conds if str(c["id"])!=str(id)]
-    save_json(ARQ_CONDS, conds)
-    registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido id {id} via DELETE antigo", condominio_id=id, request=request)
-    return {"ok": True}
-
-@app.delete("/api/condominios/{cond_id}")
-def deletar_cond_path(cond_id: str, request: Request = None, token: str = Depends(requer_auth)):
-    conds = load_json(ARQ_CONDS, [])
-    cond_alvo = next((c for c in conds if str(c["id"]) == str(cond_id)), None)
-    if not cond_alvo:
-        raise HTTPException(status_code=404, detail="Condomínio não encontrado")
-    conds = [c for c in conds if str(c["id"]) != str(cond_id)]
-    save_json(ARQ_CONDS, conds)
-    registrar_auditoria("EXCLUIU_CONDOMINIO", detalhes=f"Excluido {cond_alvo.get('nome')} {cond_alvo.get('codigo_armario','')} via DELETE", condominio_id=cond_id, request=request)
-    return {"ok": True}
 
 def validar_senha_admin(senha_fornecida: str) -> bool:
     if not senha_fornecida: return False
