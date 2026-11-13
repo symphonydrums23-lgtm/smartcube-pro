@@ -1151,7 +1151,7 @@ def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_
     return {"ok": True, "box": box_id, "msg": f"Comando de abertura enviado para Box {box_id} - libera frente e verso (mesma caixa física)"}
 
 @app.post("/api/condfy/sync")
-def condfy_sync(payload: dict, request: Request, token: str = Depends(requer_auth)):
+def condfy_sync(payload: dict, request: Request, api_key: dict = Depends(verificar_api_key)):
     condominio_id=str(payload.get("condominio_id","")); blocos_api=payload.get("blocos",[]); moradores_api=payload.get("moradores",[])
     conds=load_json(ARQ_CONDS, [])
     for c in conds:
