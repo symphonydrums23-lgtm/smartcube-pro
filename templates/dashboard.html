@@ -5,13 +5,6 @@
 <title>Painel - Smart Cube v5.7 MODELOS + DUPLA FACE</title>
 <script>
 (function(){
-  const urlParams = new URLSearchParams(window.location.search);
-  const tokenUrl = urlParams.get('token');
-  if(tokenUrl){
-    localStorage.setItem('sc_token', tokenUrl);
-    document.cookie = "sc_token=" + tokenUrl + "; path=/; max-age=28800; SameSite=Lax";
-    window.history.replaceState({}, document.title, "/dashboard");
-  }
   const t = localStorage.getItem('sc_token');
   if(!t || t.length < 10){
     window.location.replace('/login');
@@ -927,6 +920,92 @@ async function salvarOperador(){
   }catch(e){ alert(e.message); }
 }
 window.salvarNovoOperador = salvarOperador;
+
+// --- PATCH ETAPA 3 - DASHBOARD ---
+let DADOS = null;
+let COND_ID = '1';
+let HIST_CACHE = [];
+let HIST_TIPO = 'todos';
+let DADOS_FILTRADOS = [];
+let TIPO_ATUAL = '';
+
+// Sync cores White Label - color picker <-> texto
+function syncColor(pickerId, txtId){
+  const p = document.getElementById(pickerId);
+  const t = document.getElementById(txtId);
+  if(!p || !t) return;
+  p.addEventListener('input', ()=>{ t.value = p.value; });
+  t.addEventListener('input', ()=>{ if(/^#[0-9A-Fa-f]{6}$/.test(t.value)) p.value = t.value; });
+}
+['wlCorFundo','wlCorQr','wlCorBotao','wlCorFrase','wlCorSair'].forEach(id=>{
+  syncColor(id, id+'Txt');
+});
+
+// Salvar contrato - cVenc = cFim, cValorMensal = cValor
+async function salvarContrato(){
+  if(!COND_ID) return alert('Abra um condomínio primeiro');
+  const body = {
+    armario_num: document.getElementById('cArm')?.value || '',
+    endereco: document.getElementById('cEnd')?.value || '', // cEnd
+    valor_mensal: document.getElementById('cValorMensal')?.value || '', // cValor
+    valor_instalacao: document.getElementById('cValorInst')?.value || '',
+    status: document.getElementById('cAtivo')?.value || 'ativo',
+    vencimento: document.getElementById('cVenc')?.value || '', // cFim
+    data_inicio: document.getElementById('cDataInicio')?.value || '',
+    periodo: document.getElementById('cPeriodo')?.value || '12 meses',
+    operador: document.getElementById('cOperador')?.value || ''
+  };
+  try{
+    const r = await fetchAuth(API_BASE+'/api/condominios/'+COND_ID,{method:'PUT',headers:authHeadersJson(),body:JSON.stringify(body)});
+    if(r.ok){ alert('✅ Contrato salvo!'); carregarConds(); }
+    else alert('❌ Erro: '+r.status);
+  }catch(e){ alert('Erro: '+e.message); }
+}
+
+// Filtro de data do modal - agora funciona
+function aplicarFiltroData(){
+  const de = document.getElementById('dataDe')?.value;
+  const ate = document.getElementById('dataAte')?.value;
+  if(!de && !ate) return;
+  const base = DADOS_FILTRADOS.length ? DADOS_FILTRADOS : (DADOS?.lista||[]);
+  const filtrado = base.filter(i=>{
+    const d = (i.data||'').slice(0,10) || (i.created_at||'').slice(0,10);
+    if(de && d < de) return false;
+    if(ate && d > ate) return false;
+    return true;
+  });
+  DADOS_FILTRADOS = filtrado;
+  if(TIPO_ATUAL) abrirModalLista(filtrado, document.getElementById('modalTitulo')?.innerText||'Filtrado');
+  else renderHistFiltrado(filtrado);
+}
+function renderHistFiltrado(lista){
+  // reusa renderHist mas com lista filtrada
+  HIST_CACHE = lista.map(x=>({...x,_tipo: x.data_retirada?'retirada':'entrega'}));
+  renderHist();
+}
+
+// Export CSV - usa DADOS_FILTRADOS ou lista atual
+function gerarCSV(){
+  const lista = DADOS_FILTRADOS.length ? DADOS_FILTRADOS : (DADOS?.lista||[]);
+  if(!lista.length) return alert('Nada pra exportar');
+  const csv = 'Protocolo,Bloco,Apto,Box,Data,Codigo\n' + lista.map(i=>`${i.protocolo||i.codigo||''},${i.bloco||''},${i.apartamento||i.apto||''},${i.box||''},${i.data||''},${i.codigo_retirada||i.codigo||''}`).join('\n');
+  const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='relatorio-smartcube.csv'; a.click();
+}
+
+// Stubs que faltavam - pra não dar SyntaxError / is not a function
+function novoCond(){ document.getElementById('modalNovoCond').style.display='flex'; atualizarPreset(); }
+function fecharNovoCond(){ document.getElementById('modalNovoCond').style.display='none'; }
+function toggleBlocos(){ const on = document.getElementById('nTemBlocos')?.checked; document.getElementById('nBlocosGroup').style.display = on?'grid':'none'; atualizarBlocosResumo(); }
+function atualizarBlocosResumo(){ const q = document.getElementById('nQtdBlocos')?.value||1; const n = document.getElementById('nNomesBlocos')?.value||'A'; document.getElementById('nBlocosResumo').innerText = `${q} bloco(s) • ${n}`; }
+function salvarNovoCond(){ alert('Use a rota /api/condominios - implemente salvarNovoCond no backend se ainda não existir'); }
+function novoOperador(){ document.getElementById('modalNovoOperador').style.display='flex'; }
+function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
+function salvarNovoOperador(){ alert('Salvar operador - conectar em /api/operadores'); }
+function excluirCondModal(id,nome){ if(confirm(`Excluir ${nome}?`)) fetchAuth(API_BASE+'/api/condominios/'+id,{method:'DELETE'}).then(()=>carregarConds()); }
+function gerarLinkContrato(){ const c = document.getElementById('contCondSelect')?.value||''; document.getElementById('contLink').value = location.origin+'/contrato?cond='+c; }
+function copiarLinkContrato(){ navigator.clipboard.writeText(document.getElementById('contLink').value); alert('Copiado'); }
+function carregarOperadores(){ /* já existe lista, mantém */ }
 </script>
 </body>
 </html>
