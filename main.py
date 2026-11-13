@@ -531,7 +531,7 @@ def registrar_tablet(payload: dict, request: Request, token: str = Depends(reque
     return {"ok": True, "tablet_token": novo_token, "condominio_id": condominio_id, "tablet_id": tablet_id}
 
 @app.post("/api/tablet/entrega")
-async def tablet_entrega(payload: dict, request: Request = None):
+async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = Depends(verificar_tablet_token)):
     with FILE_LOCK:
         dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
         condominio_id = str(payload.get("condominio_id","1"))
@@ -588,7 +588,7 @@ async def tablet_entrega(payload: dict, request: Request = None):
         return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "codigo": codigo_morador, "qr_code": qr_morador, "tamanho_solicitado": tamanho_solicitado, "tamanho_real": nova["tamanho_real"], "upgrade": foi_upgrade, "bloco": nova["bloco"], "apartamento": nova["apartamento"]}
 
 @app.post("/api/tablet/retirada")
-async def tablet_retirada(payload: dict, request: Request = None):
+async def tablet_retirada(payload: dict, request: Request = None, tablet: dict = Depends(verificar_tablet_token)):
     with FILE_LOCK:
         dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
         codigo = str(payload.get("codigo","")).strip()
