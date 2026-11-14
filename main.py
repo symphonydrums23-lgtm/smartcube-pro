@@ -556,13 +556,13 @@ def normalizar_box(box):
 async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = Depends(verificar_tablet_token)):
     with FILE_LOCK:
         dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
-        condominio_id = str(payload.get("condominio_id","1"))
+        # ETAPA 1.4 - Condomínio vem do TOKEN do tablet, nunca do payload
+        condominio_id = str(getattr(request.state, "tablet_condominio_id", "") or tablet.get("condominio_id") or "").strip()
+        if not condominio_id or condominio_id == "1":
+            raise HTTPException(status_code=400, detail="Tablet não travado. Configure o condomínio no tablet.")
         tamanho_solicitado = str(payload.get("tamanho","P")).upper() or "P"
         cond_config = get_cond_config(condominio_id)
-        if condominio_id=="1":
-            raise HTTPException(status_code=400, detail="Tablet não travado. Configure o condomínio no tablet.")
-        box_escolhido, tamanho_final, foi_upgrade = None, tamanho_solicitado, False
-        box_escolhido, _, foi_upgrade = get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)
+        box_escolhido, tamanho_final, foi_upgrade = get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)
         if not box_escolhido:
             raise HTTPException(status_code=409, detail=f"SEM_ESPACO_{tamanho_solicitado}")
         # TRAVA DUPLA FACE: 05 já ocupado = 05 inteiro ocupado, não só F ou V
@@ -600,7 +600,7 @@ async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = 
             "created_at": datetime.now().isoformat(),
             "condominio_id": condominio_id,
             "tamanho_solicitado": tamanho_solicitado,
-            "tamanho_real": tamanho_final if not foi_upgrade else get_box_livre(dados, condominio_id, tamanho_solicitado, cond_config)[1],
+            "tamanho_real": tamanho_final,
             "upgrade": foi_upgrade,
             "qr_valido": True,
             "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
