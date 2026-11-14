@@ -529,6 +529,20 @@ def registrar_tablet(payload: dict, request: Request, token: str = Depends(reque
     registrar_auditoria("REGISTROU_TABLET", detalhes=f"Tablet {tablet_id} Cond {condominio_id}", condominio_id=condominio_id, request=request)
     return {"ok": True, "tablet_token": novo_token, "condominio_id": condominio_id, "tablet_id": tablet_id}
 
+@app.get("/api/tablet/info")
+def tablet_info(request: Request, tablet: dict = Depends(verificar_tablet_token)):
+    # ETAPA 1.4 - Tablet descobre o condomínio pelo TOKEN, nunca pelo localStorage
+    condominio_id = str(request.state.tablet_condominio_id or tablet.get("condominio_id") or "")
+    conds = load_json(ARQ_CONDS, [])
+    cond = next((c for c in conds if str(c.get("id")) == condominio_id), None)
+    return {
+        "ok": True,
+        "condominio_id": condominio_id,
+        "tablet_id": tablet.get("tablet_id", ""),
+        "condominio_nome": cond.get("nome", "") if cond else "",
+        "codigo_armario": cond.get("codigo_armario", "") if cond else "",
+    }
+
 def get_cond_config(condominio_id):
     conds = load_json(ARQ_CONDS, [])
     c = next((x for x in conds if str(x.get("id")) == str(condominio_id)), None)
