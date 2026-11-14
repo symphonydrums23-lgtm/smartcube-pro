@@ -66,6 +66,8 @@ async function carregarInfoTablet(){
     // d = { condominio_id, condominio_nome, codigo_armario }
     label.innerText = (d.codigo_armario || 'ARM') + ' • ' + (d.condominio_nome || '');
     btnVoltar.style.display = 'none';
+    let btnDep = document.getElementById('btnDeposito');
+if(d.dupla_face || d.is_dupla_face || d.duplaFace){ btnDep.style.display = 'flex'; } else { btnDep.style.display = 'none'; }
     // Guarda só pra exibição da saudação "Seja bem-vindo ao [Nome]" - não é usado pra decidir condomínio
     sessionStorage.setItem('condominio_nome_exibir', d.condominio_nome || '');
   }catch(e){
