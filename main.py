@@ -543,6 +543,7 @@ def tablet_info(request: Request, tablet: dict = Depends(verificar_tablet_token)
         "tablet_id": tablet.get("tablet_id", ""),
         "condominio_nome": cond.get("nome", "") if cond else "",
         "codigo_armario": cond.get("codigo_armario", "") if cond else "",
+        "dupla_face": bool(cond.get("dupla_face") or cond.get("is_dupla_face") or cond.get("dupla") or cond.get("duplaFace") or False) if cond else False,
     }
 
 def get_cond_config(condominio_id):
