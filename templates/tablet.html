@@ -31,7 +31,7 @@ body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:col
 <div class="arm-label" id="armLabel"></div>
 <button class="btn btn-entregar" onclick="location.href='/entrega'">📦 ENTREGAR<small>ENTREGADOR / PORTARIA</small></button>
 <button class="btn btn-receber" onclick="location.href='/retirada'">🔑 RECEBER<small>MORADOR</small></button>
-<button class="btn btn-deposito" onclick="location.href='/deposito-interno'">📦 DEVOLVER<small>ENCOMENDA ERRADA / POR DENTRO</small></button>
+<button id="btnDeposito" class="btn btn-deposito" style="display:none" onclick="location.href='/deposito-interno'">📦 DEVOLVER<small>ENCOMENDA ERRADA / POR DENTRO</small></button>
 <div class="voltar" id="btnVoltar" onclick="location.href='/'">VOLTAR AO INÍCIO</div>
 
 <!-- SETUP OCULTO -->
