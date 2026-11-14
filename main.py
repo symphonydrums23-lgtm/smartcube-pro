@@ -347,6 +347,8 @@ async def tablet_menu_page(request: Request): return no_cache_html(get_path("tab
 async def retirada_page(request: Request): return no_cache_html(get_path("retirada.html"))
 @app.get("/entrega", response_class=HTMLResponse)
 async def entrega_page(request: Request): return no_cache_html(get_path("entrega.html"))
+@app.get("/deposito-interno", response_class=HTMLResponse)
+async def deposito_interno_page(request: Request): return no_cache_html(get_path("deposito-interno.html"))
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
     auth = request.headers.get("authorization") or ""
