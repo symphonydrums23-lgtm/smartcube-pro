@@ -673,6 +673,76 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
         save_json(ARQ_DADOS, dados)
         registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {box_liberado} liberado pela porta V Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", condominio_id=str(achado.get("condominio_id","")), request=request)
         return {"ok": True, "box": box_liberado, "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
+
+# ETAPA 2.1 - DEPÓSITO INTERNO: morador / zelador / síndico devolve encomenda errada pelo lado de dentro
+# Sem sair do condomínio. O box continua o mesmo, só troca o destino.
+
+@app.post("/api/tablet/deposito-interno")
+def deposito_interno(request: Request, dados: dict, tablet: dict = Depends(verificar_tablet_token)):
+    condominio_id = str(request.state.tablet_condominio_id)
+    codigo = str(dados.get("codigo", "") or dados.get("codigo_retirada", "")).strip().upper()
+    bloco_novo = str(dados.get("bloco", "") or "").strip().upper()
+    apto_novo = str(dados.get("apartamento", "") or "").strip()
+
+    if not codigo:
+        raise HTTPException(400, "Informe o código da encomenda")
+    if not bloco_novo or not apto_novo:
+        raise HTTPException(400, "Informe bloco e apto correto para reentrega")
+
+    entregas = load_json(ARQ_ENTREGAS, [])
+    # Acha a entrega original pelo código, mesmo que já tenha sido retirada
+    orig = None
+    for e in entregas:
+        if str(e.get("condominio_id")) != condominio_id:
+            continue
+        cod_e = str(e.get("codigo_retirada", "") or e.get("protocolo", "")).upper()
+        if cod_e == codigo:
+            orig = e
+            break
+    if not orig:
+        raise HTTPException(404, "Código não encontrado neste condomínio")
+    if orig.get("status") == "DEVOLVIDO_INTERNO":
+        raise HTTPException(400, "Essa encomenda já foi devolvida pelo lado de dentro")
+
+    box_fisico, _ = parse_box_fisico(orig.get("box", ""))
+    # 1. Marca a original como devolvida, não como retirada
+    orig["status"] = "DEVOLVIDO_INTERNO"
+    orig["devolvido_em"] = datetime.now().isoformat()
+    orig["devolvido_por"] = "INTERNO_LADO_B"
+
+    # 2. Cria a nova entrega pro destino correto, NO MESMO BOX FÍSICO
+    # Lado B continua sendo o lado de dentro, então o novo morador retira pelo mesmo lado
+    nova = {
+        "id": str(uuid.uuid4()),
+        "condominio_id": condominio_id,
+        "protocolo": "SC-RET-" + "".join(random.choices(string.digits, k=6)),
+        "codigo_retirada": "SC-RET-" + "".join(random.choices(string.digits, k=6)),
+        "bloco": bloco_novo,
+        "apartamento": apto_novo,
+        "tamanho": orig.get("tamanho", "M"),
+        "box": box_fisico,  # Mesmo box, lado de dentro
+        "status": "AGUARDANDO_RETIRADA",
+        "origem": "DEVOLUCAO_INTERNA",
+        "protocolo_origem": orig.get("protocolo", ""),
+        "criado_em": datetime.now().isoformat(),
+    }
+    # Usa o mesmo código pra não confundir: o novo código é o que o morador certo vai usar
+    nova["codigo_retirada"] = nova["protocolo"]
+    entregas.append(nova)
+    save_json(ARQ_ENTREGAS, entregas)
+
+    return {
+        "ok": True,
+        "box": f"{box_fisico}-B",
+        "box_fisico": box_fisico,
+        "lado": "B",
+        "mensagem": f"Devolvido pelo lado de dentro. Novo código para Bloco {bloco_novo} Apto {apto_novo}: {nova['protocolo']}",
+        "novo_protocolo": nova["protocolo"],
+        "novo_codigo": nova["codigo_retirada"],
+        "bloco": bloco_novo,
+        "apartamento": apto_novo,
+    }
+
 # === CRIAR CONDOMINIO - CORRIGIDO SEM DUPLICACAO ===
 @app.post("/api/condominios")
 def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth)):
