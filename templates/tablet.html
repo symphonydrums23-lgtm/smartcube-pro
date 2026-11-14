@@ -45,17 +45,36 @@ body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:col
 </div>
 
 <script>
-// MOSTRA ARM TRAVADO
-const travado = localStorage.getItem('condominio_travado') === 'true';
-const condId = localStorage.getItem('condominio_selecionado');
-const condNome = localStorage.getItem('condominio_nome');
-const condArm = localStorage.getItem('condominio_arm');
-if(travado && condId){
-  document.getElementById('armLabel').innerText = (condArm || 'ARM') + ' • ' + (condNome || '');
-  document.getElementById('btnVoltar').style.display = 'none';
-}
+// ETAPA 1.4 - localStorage guarda SÓ o token do tablet, nunca o condomínio
+// Condomínio vem do backend pelo token. Limpar localStorage não destrava, só desloga o tablet.
+function getTabletToken(){ return localStorage.getItem('tablet_token') || ''; }
 
-// SETUP - SEGURA LOGO 5s
+async function carregarInfoTablet(){
+  const token = getTabletToken();
+  const label = document.getElementById('armLabel');
+  const btnVoltar = document.getElementById('btnVoltar');
+  if(!token){
+    label.innerText = 'TABLET NÃO CONFIGURADO - SEGURE A LOGO 4s';
+    btnVoltar.style.display = 'block';
+    return;
+  }
+  try{
+    let r = await fetch('/api/tablet/info', { headers: { 'X-Tablet-Token': token } });
+    if(!r.ok) throw new Error('token invalido');
+    let d = await r.json();
+    // d = { condominio_id, condominio_nome, codigo_armario }
+    label.innerText = (d.codigo_armario || 'ARM') + ' • ' + (d.condominio_nome || '');
+    btnVoltar.style.display = 'none';
+    // Guarda só pra exibição da saudação "Seja bem-vindo ao [Nome]" - não é usado pra decidir condomínio
+    sessionStorage.setItem('condominio_nome_exibir', d.condominio_nome || '');
+  }catch(e){
+    label.innerText = 'TABLET NÃO CONFIGURADO - SEGURE A LOGO 4s';
+    btnVoltar.style.display = 'block';
+  }
+}
+carregarInfoTablet();
+
+// SETUP - SEGURA LOGO 4s
 let pressTimer;
 const logo = document.getElementById('logo');
 logo.addEventListener('touchstart', ()=>{ pressTimer = setTimeout(abrirSetup, 4000); });
@@ -72,38 +91,53 @@ async function abrirSetup(){
       let sel = document.getElementById('selConds');
       sel.innerHTML = '';
       conds.forEach(c=>{
-        if(c.id === '1') return; // pula Todos
+        if(c.id === '1') return;
         let opt = document.createElement('option');
         opt.value = c.id;
         opt.textContent = (c.codigo_armario||'ARM')+' - '+c.nome;
-        opt.dataset.nome = c.nome;
-        opt.dataset.arm = c.codigo_armario;
         sel.appendChild(opt);
       });
     }
   }catch(e){}
 }
 function fecharSetup(){ document.getElementById('setupOverlay').style.display='none'; }
-function travarArmario(){
+
+async function travarArmario(){
   let sel = document.getElementById('selConds');
-  let opt = sel.options[sel.selectedIndex];
-  if(!opt) return;
-  localStorage.setItem('condominio_selecionado', opt.value);
-  localStorage.setItem('condominio_nome', opt.dataset.nome);
-  localStorage.setItem('condominio_arm', opt.dataset.arm);
-  localStorage.setItem('condominio_travado', 'true');
-  alert('Travado em: '+opt.textContent+'\nTablet reiniciando travado.');
-  location.reload();
+  let condId = sel.value;
+  if(!condId) return;
+  // Pede token do tablet pro backend. O backend que trava condomínio <-> token.
+  // Essa rota exige login de admin (cookie sc_token). Se não estiver logado, volta pro /login.
+  try{
+    let r = await fetch('/api/tablet/registrar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ condominio_id: condId, tablet_id: 'tablet-' + condId })
+    });
+    if(r.status === 401){ alert('Faça login de admin antes de travar o tablet.'); location.href = '/login'; return; }
+    if(!r.ok) throw new Error('falha registrar');
+    let d = await r.json();
+    // Só o token fica salvo. Nada de condominio_selecionado / nome / arm / travado
+    localStorage.setItem('tablet_token', d.tablet_token);
+    alert('Travado! Tablet reiniciando travado.');
+    location.reload();
+  }catch(e){
+    alert('Erro ao travar tablet. Tente de novo.');
+  }
 }
 
-// IA PACK v5.5.1 - SILENCIOSA
+// IA PACK - SILENCIOSA - usa só o token, não o condominio do localStorage
 async function iaTabletBackground(){
   try{
-    let cId = localStorage.getItem('condominio_selecionado') || '1';
-    let r = await fetch('/api/ia/lotacao-24h?condominio='+encodeURIComponent(cId));
+    let token = getTabletToken();
+    if(!token) return;
+    let r = await fetch('/api/tablet/info', { headers: { 'X-Tablet-Token': token } });
     if(!r.ok) return;
     let d = await r.json();
-    console.log('[IA Tablet] Cond:', cId, 'Previsao:', d.previsao_percent+'%');
+    let r2 = await fetch('/api/ia/lotacao-24h?condominio='+encodeURIComponent(d.condominio_id));
+    if(!r2.ok) return;
+    let ia = await r2.json();
+    console.log('[IA Tablet] Cond:', d.condominio_id, 'Previsao:', ia.previsao_percent+'%');
   }catch(e){}
 }
 iaTabletBackground();
