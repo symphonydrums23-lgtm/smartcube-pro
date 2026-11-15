@@ -56,6 +56,7 @@ async function doLogin(){
     const r = await fetch(API_BASE+'/api/auth/login',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
+      credentials: 'include',
       body: JSON.stringify({usuario: u, senha: p})
     });
     
@@ -68,21 +69,20 @@ async function doLogin(){
       return;
     }
     
-    if(j.ok && j.token){
-      localStorage.removeItem('sc_token');
-      localStorage.setItem('sc_token', j.token);
-      localStorage.setItem('sc_user', u);
-      // BLINDAGEM: salva no cookie pro servidor validar
-      document.cookie = "sc_token=" + j.token + "; path=/; max-age=28800; SameSite=Lax";
-      // Vai pro dashboard com token
-      window.location.replace('/dashboard?token=' + encodeURIComponent(j.token));
+    if(j.ok){
+      // FIX v5.9: não salva token no localStorage e não joga token na URL
+      // O backend já seta o cookie httponly, é só ir pro dashboard limpo
+      try { localStorage.removeItem('sc_token'); } catch(e){}
+      try { localStorage.removeItem('sc_user'); } catch(e){}
+      try { document.cookie = "sc_token=; path=/; max-age=0"; } catch(e){}
+      window.location.replace('/dashboard');
     }else{
-      showErr('Erro no login - token não retornado');
+      showErr('Erro no login');
       btn.disabled = false;
       btn.innerText = 'ENTRAR NO PAINEL →';
     }
   }catch(e){
-    showErr('Erro de conexão com servidor :5000 - '+e.message);
+    showErr('Erro de conexão com servidor - '+e.message);
     btn.disabled = false;
     btn.innerText = 'ENTRAR NO PAINEL →';
   }
@@ -93,18 +93,13 @@ document.getElementById('pass').addEventListener('keydown', e=>{
 });
 
 (async ()=>{
-  const t = localStorage.getItem('sc_token');
-  if(t && t.length>10){
-    try{
-      const r = await fetch(API_BASE+'/api/auth/verificar',{headers:{'Authorization':'Bearer '+t}});
-      if(r.ok){
-        document.cookie = "sc_token=" + t + "; path=/; max-age=28800; SameSite=Lax";
-        window.location.replace('/dashboard?token=' + encodeURIComponent(t));
-      } else {
-        localStorage.removeItem('sc_token');
-      }
-    }catch{ localStorage.removeItem('sc_token'); }
-  }
+  // Auto-login: valida pelo cookie httponly, sem token no localStorage / URL
+  try{
+    const r = await fetch(API_BASE+'/api/auth/verificar',{ credentials: 'include' });
+    if(r.ok){
+      window.location.replace('/dashboard');
+    }
+  }catch(e){}
 })();
 </script>
 </body>
