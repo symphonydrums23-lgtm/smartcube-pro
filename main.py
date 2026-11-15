@@ -950,14 +950,16 @@ def criar_operador(payload: dict, request: Request = None, token: str = Depends(
     users.append(novo_user)
     save_json(ARQ_APP_USERS, users)
     registrar_auditoria("CRIOU_OPERADOR", detalhes=f"Operador {nome} {bloco}/{apto} Cond {condominio}", condominio_id=condominio, request=request)
-    return {"ok": True, "usuario": novo_user}
+    usuario_retorno = {k: v for k, v in novo_user.items() if k != "senha_hash"}
+    return {"ok": True, "usuario": usuario_retorno}
 
 @app.get("/api/usuarios")
 def listar_usuarios(condominio: str = Query(None), token: str = Depends(requer_auth)):
     users = load_json(ARQ_APP_USERS, [])
     if condominio:
         users = [u for u in users if str(u.get("condominio"))==str(condominio)]
-    return users
+    # P0-4: Nunca devolver senha_hash
+    return [{k: v for k, v in u.items() if k != "senha_hash"} for u in users]
 
 @app.get("/api/operadores")
 def listar_operadores(token: str = Depends(requer_auth)):
