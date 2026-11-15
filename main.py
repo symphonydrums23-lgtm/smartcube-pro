@@ -43,6 +43,59 @@ def verificar_tablet_token(request: Request, x_tablet_token: str = Header(None))
     request.state.tablet_id = dados.get("tablet_id", "")
     return dados
 
+# PARTE 2 - 1. TRAVA DE PORTA + ANTI-REPLAY
+_COMANDOS_ABERTURA = {}  # nonce -> timestamp
+
+@app.post("/api/tablet/abrir-porta")
+def tablet_abrir_porta(request: Request, dados: dict, tablet: dict = Depends(verificar_tablet_token)):
+    condominio_id = str(request.state.tablet_condominio_id)
+    box = normalizar_box(dados.get("box", ""))
+    lado = str(dados.get("lado", "") or "").strip().upper()  # F = Frente / V = Verso
+    nonce = str(dados.get("nonce", "") or "").strip()
+    acao = str(dados.get("acao", "") or "").strip().upper()  # ENTREGA ou RETIRADA
+
+    if not box:
+        raise HTTPException(400, "Informe o box")
+    if lado not in ("F", "V"):
+        raise HTTPException(400, "Lado inválido, use F ou V")
+    if not nonce:
+        raise HTTPException(400, "Nonce obrigatório")
+    if acao not in ("ENTREGA", "RETIRADA"):
+        raise HTTPException(400, "Ação inválida")
+
+    # Anti-replay: mesmo nonce não abre 2x em 30s
+    agora = time.time()
+    for k in list(_COMANDOS_ABERTURA.keys()):
+        if agora - _COMANDOS_ABERTURA[k] > 30:
+            _COMANDOS_ABERTURA.pop(k, None)
+    if nonce in _COMANDOS_ABERTURA:
+        raise HTTPException(409, "Comando já usado - anti-replay")
+    _COMANDOS_ABERTURA[nonce] = agora
+
+    # Confere se existe entrega ativa nesse box / lado antes de abrir
+    with FILE_LOCK:
+        dados_arq = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+        tem = False
+        for e in dados_arq.get("lista", []):
+            if str(e.get("condominio_id")) == condominio_id and normalizar_box(e.get("box","")) == box:
+                tem = True
+                break
+        if acao == "RETIRADA" and not tem:
+            raise HTTPException(404, "Nenhuma entrega ativa nesse box")
+
+    registrar_auditoria("ABRIR_PORTA", detalhes=f"Box {box} Lado {lado} Ação {acao}", condominio_id=condominio_id, request=request)
+    return {
+        "ok": True,
+        "box": box,
+        "lado": lado,
+        "acao": acao,
+        "abrir_por_segundos": 15,
+        "comando": f"OPEN:{box}:{lado}",
+        "nonce": nonce,
+    }
+
+SECRET_JWT = os.getenv("SECRET_JWT")
+
 SECRET_JWT = os.getenv("SECRET_JWT")
 
 SECRET_JWT = os.getenv("SECRET_JWT")
