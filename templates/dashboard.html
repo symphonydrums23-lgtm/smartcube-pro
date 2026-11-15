@@ -4,12 +4,19 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel - Smart Cube v5.7 MODELOS + DUPLA FACE</title>
 <script>
+// === FIX TOKEN NA URL v5.9 - dashboard.html topo ===
+// 1. Se a URL veio com ?token=... de login antigo, limpa na hora sem recarregar
 (function(){
-  const t = localStorage.getItem('sc_token');
-  if(!t || t.length < 10){
-    window.location.replace('/login');
+  if (window.location.search.includes('token=')) {
+    const urlLimpa = window.location.pathname + window.location.hash;
+    window.history.replaceState({}, '', urlLimpa);
   }
+  try { localStorage.removeItem('sc_token'); } catch(e){}
+  try { sessionStorage.removeItem('sc_token'); } catch(e){}
+  // Não bloqueia por token no localStorage mais.
+  // Quem valida a sessão agora é o cookie httponly no /api/auth/verificar
 })();
+</script>
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
