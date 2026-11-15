@@ -489,7 +489,16 @@ def garantir_codigo_armario(conds_list):
 def listar_conds(token: str = Depends(requer_auth)):
     conds = load_json(ARQ_CONDS, [])
     conds = garantir_codigo_armario(conds)
-    return conds
+    # P0-5: Mesmo filtro do GET /{id} - não expõe dado sensível na lista
+    saida = []
+    for c in conds:
+        cc = dict(c)
+        cc.pop("cnpj", None)
+        cc.pop("valor_mensal", None)
+        cc.pop("valor_instalacao", None)
+        cc.pop("endereco", None)
+        saida.append(cc)
+    return saida
 
 @app.get("/api/condominios/modelos")
 def listar_modelos(token: str = Depends(requer_auth)):
