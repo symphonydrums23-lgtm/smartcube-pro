@@ -642,13 +642,23 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
             raise HTTPException(status_code=400, detail="Código obrigatório")
         if codigo.startswith("SC-") and not codigo.startswith("SC-RET-"):
             raise HTTPException(status_code=403, detail="Protocolo de entregador não abre box. Use código do morador.")
+              # P0-1: RETIRADA TRAVADA NO CONDOMÍNIO DO TOKEN
+        condominio_tablet = str(getattr(request.state, "tablet_condominio_id", "") or tablet.get("condominio_id") or "").strip()
         achado = None
         nova_lista = []
+        achado_outro_cond = False
         for item in dados.get("lista",[]):
             if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
+                # Se o código é de outro condomínio, não libera e marca
+                if str(item.get("condominio_id","")) != condominio_tablet:
+                    achado_outro_cond = True
+                    nova_lista.append(item)
+                    continue
                 achado=item
             else:
                 nova_lista.append(item)
+        if achado_outro_cond and not achado:
+            raise HTTPException(status_code=403, detail="Código pertence a outro condomínio")
         if not achado:
             raise HTTPException(status_code=404, detail="Código não encontrado ou já utilizado")
         # Morador retira pela porta V (interna), mas libera o mesmo box 05
@@ -674,7 +684,7 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
         dados["lista"]=nova_lista
         dados["historico"].append(achado)
         save_json(ARQ_DADOS, dados)
-        registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {box_liberado} liberado pela porta V Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", condominio_id=str(achado.get("condominio_id","")), request=request)
+        registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {box_liberado} liberado pela porta V Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", condominio_id=condominio_tablet, request=request)
         return {"ok": True, "box": box_liberado, "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
 
 # ETAPA 2.1 - DEPÓSITO INTERNO: morador / zelador / síndico devolve encomenda errada pelo lado de dentro
