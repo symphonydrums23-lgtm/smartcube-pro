@@ -713,63 +713,76 @@ def deposito_interno(request: Request, dados: dict, tablet: dict = Depends(verif
     condominio_id = str(request.state.tablet_condominio_id)
     codigo = str(dados.get("codigo", "") or dados.get("codigo_retirada", "")).strip().upper()
     bloco_novo = str(dados.get("bloco", "") or "").strip().upper()
-    apto_novo = str(dados.get("apartamento", "") or "").strip()
+    apto_novo = str(dados.get("apartamento", "") or dados.get("apto", "") or "").strip()
 
     if not codigo:
         raise HTTPException(400, "Informe o código da encomenda")
     if not bloco_novo or not apto_novo:
         raise HTTPException(400, "Informe bloco e apto correto para reentrega")
 
-    entregas = load_json(ARQ_ENTREGAS, [])
-    # Acha a entrega original pelo código, mesmo que já tenha sido retirada
-    orig = None
-    for e in entregas:
-        if str(e.get("condominio_id")) != condominio_id:
-            continue
-        cod_e = str(e.get("codigo_retirada", "") or e.get("protocolo", "")).upper()
-        if cod_e == codigo:
-            orig = e
-            break
-    if not orig:
-        raise HTTPException(404, "Código não encontrado neste condomínio")
-    if orig.get("status") == "DEVOLVIDO_INTERNO":
-        raise HTTPException(400, "Essa encomenda já foi devolvida pelo lado de dentro")
+    with FILE_LOCK:
+        dados_arq = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+        orig = None
+        for e in dados_arq.get("lista", []):
+            if str(e.get("condominio_id")) != condominio_id:
+                continue
+            cod_e = str(e.get("codigo_retirada", "") or e.get("codigo", "") or e.get("qr_code", "")).upper()
+            if cod_e == codigo:
+                orig = e
+                break
+        if not orig:
+            raise HTTPException(404, "Código não encontrado neste condomínio")
+        if orig.get("status") == "DEVOLVIDO_INTERNO":
+            raise HTTPException(400, "Essa encomenda já foi devolvida pelo lado de dentro")
 
-    box_fisico, _ = parse_box_fisico(orig.get("box", ""))
-    # 1. Marca a original como devolvida, não como retirada
-    orig["status"] = "DEVOLVIDO_INTERNO"
-    orig["devolvido_em"] = datetime.now().isoformat()
-    orig["devolvido_por"] = "INTERNO_LADO_B"
+        # Marca original como devolvida, não como retirada
+        orig["status"] = "DEVOLVIDO_INTERNO"
+        orig["devolvido_em"] = now_brt().isoformat()
+        orig["devolvido_por"] = "INTERNO_LADO_B"
 
-    # 2. Cria a nova entrega pro destino correto, NO MESMO BOX FÍSICO
-    # Lado B continua sendo o lado de dentro, então o novo morador retira pelo mesmo lado
-    nova = {
-        "id": str(uuid.uuid4()),
-        "condominio_id": condominio_id,
-        "protocolo": "SC-RET-" + "".join(random.choices(string.digits, k=6)),
-        "codigo_retirada": "SC-RET-" + "".join(random.choices(string.digits, k=6)),
-        "bloco": bloco_novo,
-        "apartamento": apto_novo,
-        "tamanho": orig.get("tamanho", "M"),
-        "box": box_fisico,  # Mesmo box, lado de dentro
-        "status": "AGUARDANDO_RETIRADA",
-        "origem": "DEVOLUCAO_INTERNA",
-        "protocolo_origem": orig.get("protocolo", ""),
-        "criado_em": datetime.now().isoformat(),
-    }
-    # Usa o mesmo código pra não confundir: o novo código é o que o morador certo vai usar
-    nova["codigo_retirada"] = nova["protocolo"]
-    entregas.append(nova)
-    save_json(ARQ_ENTREGAS, entregas)
+        # Cria nova entrega pro destino correto, NO MESMO BOX FÍSICO
+        box_fisico = normalizar_box(orig.get("box", ""))
+        novo_codigo = f"{secrets.randbelow(900000)+100000:06d}"
+        novo_qr = f"SC-RET-{secrets.token_hex(6).upper()}"
+        nova = {
+            "box": box_fisico,
+            "face": "dupla",
+            "porta_entrega": "F",
+            "porta_retirada": "V",
+            "bloco": bloco_novo,
+            "apartamento": apto_novo,
+            "codigo": novo_codigo,
+            "codigo_retirada": novo_codigo,
+            "qr_code": novo_qr,
+            "protocolo": f"SC-{secrets.randbelow(900000)+100000}",
+            "data": now_brt().strftime("%d/%m/%Y"),
+            "hora": now_brt().strftime("%H:%M"),
+            "nome": orig.get("nome", ""),
+            "created_at": now_brt().isoformat(),
+            "condominio_id": condominio_id,
+            "tamanho_solicitado": orig.get("tamanho_solicitado", "P"),
+            "tamanho_real": orig.get("tamanho_real", "P"),
+            "upgrade": False,
+            "qr_valido": True,
+            "expira_em": (now_brt()+timedelta(hours=72)).isoformat(),
+            "origem": "DEVOLUCAO_INTERNA",
+            "protocolo_origem": orig.get("protocolo", ""),
+        }
+        dados_arq["lista"].append(nova)
+        # Move original pro histórico como devolvida, tira da lista ativa
+        dados_arq["lista"] = [x for x in dados_arq.get("lista", []) if x is not orig]
+        dados_arq["historico"].append(orig)
+        save_json(ARQ_DADOS, dados_arq)
+        registrar_auditoria("DEVOLUCAO_INTERNA", detalhes=f"Box {box_fisico} devolvido interno -> Bloco {bloco_novo} Apto {apto_novo} Orig {orig.get('protocolo')}", condominio_id=condominio_id, request=request)
 
     return {
         "ok": True,
         "box": f"{box_fisico}-B",
         "box_fisico": box_fisico,
         "lado": "B",
-        "mensagem": f"Devolvido pelo lado de dentro. Novo código para Bloco {bloco_novo} Apto {apto_novo}: {nova['protocolo']}",
+        "mensagem": f"Devolvido pelo lado de dentro. Novo código para Bloco {bloco_novo} Apto {apto_novo}: {novo_codigo}",
         "novo_protocolo": nova["protocolo"],
-        "novo_codigo": nova["codigo_retirada"],
+        "novo_codigo": novo_codigo,
         "bloco": bloco_novo,
         "apartamento": apto_novo,
     }
