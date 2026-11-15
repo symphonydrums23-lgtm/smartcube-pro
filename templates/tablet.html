@@ -47,7 +47,6 @@ body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:col
 
 <script>
 // ETAPA 1.4 - localStorage guarda SÓ o token do tablet, nunca o condomínio
-// Condomínio vem do backend pelo token. Limpar localStorage não destrava, só desloga o tablet.
 function getTabletToken(){ return localStorage.getItem('tablet_token') || ''; }
 
 async function carregarInfoTablet(){
@@ -63,12 +62,10 @@ async function carregarInfoTablet(){
     let r = await fetch('/api/tablet/info', { headers: { 'X-Tablet-Token': token } });
     if(!r.ok) throw new Error('token invalido');
     let d = await r.json();
-    // d = { condominio_id, condominio_nome, codigo_armario }
     label.innerText = (d.codigo_armario || 'ARM') + ' • ' + (d.condominio_nome || '');
     btnVoltar.style.display = 'none';
     let btnDep = document.getElementById('btnDeposito');
-if(d.dupla_face || d.is_dupla_face || d.duplaFace){ btnDep.style.display = 'flex'; } else { btnDep.style.display = 'none'; }
-    // Guarda só pra exibição da saudação "Seja bem-vindo ao [Nome]" - não é usado pra decidir condomínio
+    if(d.dupla_face || d.is_dupla_face || d.duplaFace){ btnDep.style.display = 'flex'; } else { btnDep.style.display = 'none'; }
     sessionStorage.setItem('condominio_nome_exibir', d.condominio_nome || '');
   }catch(e){
     label.innerText = 'TABLET NÃO CONFIGURADO - SEGURE A LOGO 4s';
@@ -109,8 +106,6 @@ async function travarArmario(){
   let sel = document.getElementById('selConds');
   let condId = sel.value;
   if(!condId) return;
-  // Pede token do tablet pro backend. O backend que trava condomínio <-> token.
-  // Essa rota exige login de admin (cookie sc_token). Se não estiver logado, volta pro /login.
   try{
     let r = await fetch('/api/tablet/registrar', {
       method: 'POST',
@@ -120,7 +115,6 @@ async function travarArmario(){
     if(r.status === 401){ alert('Faça login de admin antes de travar o tablet.'); location.href = '/login'; return; }
     if(!r.ok) throw new Error('falha registrar');
     let d = await r.json();
-    // Só o token fica salvo. Nada de condominio_selecionado / nome / arm / travado
     localStorage.setItem('tablet_token', d.tablet_token);
     alert('Travado! Tablet reiniciando travado.');
     location.reload();
@@ -129,7 +123,7 @@ async function travarArmario(){
   }
 }
 
-// IA PACK - SILENCIOSA - usa só o token, não o condominio do localStorage
+// IA PACK - SILENCIOSA
 async function iaTabletBackground(){
   try{
     let token = getTabletToken();
@@ -145,6 +139,79 @@ async function iaTabletBackground(){
 }
 iaTabletBackground();
 setInterval(iaTabletBackground, 300000);
+
+// ===== PARTE 2 - 1/2/3/4 - ABRIR PORTA + OFFLINE + LOG =====
+function gerarNonce(){
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10);
+}
+const FILA_KEY = 'fila_offline_smartcube';
+function getFilaOffline(){ try{ return JSON.parse(localStorage.getItem(FILA_KEY) || '[]'); }catch(e){ return []; } }
+function setFilaOffline(fila){ localStorage.setItem(FILA_KEY, JSON.stringify(fila)); }
+function enfileirarOffline(dados){
+  const fila = getFilaOffline();
+  fila.push({ ...dados, _offline_em: new Date().toISOString() });
+  setFilaOffline(fila);
+  alert('Sem internet! Comando salvo, vai sincronizar quando voltar.');
+}
+async function sincronizarFilaOffline(){
+  const fila = getFilaOffline();
+  if(!fila.length) return;
+  if(!navigator.onLine) return;
+  const restantes = [];
+  for(const item of fila){
+    try{
+      const r = await fetch('/api/tablet/abrir-porta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Tablet-Token': getTabletToken() },
+        body: JSON.stringify({ box: item.box, lado: item.lado, acao: item.acao, nonce: gerarNonce() })
+      });
+      if(!r.ok) restantes.push(item);
+    }catch(e){ restantes.push(item); }
+  }
+  setFilaOffline(restantes);
+}
+window.addEventListener('online', sincronizarFilaOffline);
+setInterval(sincronizarFilaOffline, 10000);
+sincronizarFilaOffline();
+
+async function abrirPorta(box, lado, acao){
+  const token = getTabletToken();
+  if(!token){ alert('Tablet não configurado'); return; }
+  const nonce = gerarNonce();
+  const payload = { box: String(box), lado: lado, acao: acao, nonce: nonce };
+  try{
+    const r = await fetch('/api/tablet/abrir-porta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Tablet-Token': token },
+      body: JSON.stringify(payload)
+    });
+    if(!r.ok){
+      const err = await r.json().catch(()=>({}));
+      if(r.status === 409){ alert('Comando já usado, tente de novo'); return; }
+      throw new Error(err.detail || 'Erro ao abrir');
+    }
+    const d = await r.json();
+    console.log('Porta aberta:', d);
+    // Log ABERTA
+    fetch('/api/tablet/porta-evento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Tablet-Token': token },
+      body: JSON.stringify({ box: box, lado: lado, evento: 'ABERTA', motivo: 'COMANDO' })
+    }).catch(()=>{});
+    // Log FECHADA após timeout (15s)
+    setTimeout(()=>{
+      fetch('/api/tablet/porta-evento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Tablet-Token': token },
+        body: JSON.stringify({ box: box, lado: lado, evento: 'FECHADA', motivo: 'TIMEOUT' })
+      }).catch(()=>{});
+    }, 15000);
+    alert('Porta ' + box + ' lado ' + lado + ' ABERTA por 15s');
+  }catch(e){
+    // OFFLINE - salva na fila
+    enfileirarOffline(payload);
+  }
+}
 </script>
 </body>
 </html>
