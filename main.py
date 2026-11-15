@@ -226,6 +226,15 @@ def verificar_api_key(request: Request, x_api_key: str = Header(None)):
         request.state.api_key_nome = k.get("nome", "")
     return k
 
+def check_api_key_condominio(request: Request, condominio_id: str):
+    # P0-2: Se a key tem condomínios permitidos, trava por eles
+    permitidos = getattr(request.state, "api_key_conds", []) or []
+    if not permitidos:
+        return True  # key sem trava = pode tudo (admin / genérica)
+    if str(condominio_id) not in [str(c) for c in permitidos]:
+        raise HTTPException(status_code=403, detail="API Key não tem acesso a este condomínio")
+    return True
+
 def check_rate_limit(request: Request):
     ip = request.client.host if request.client else "unknown"
     now = time.time()
@@ -1147,6 +1156,7 @@ async def api_entregas_compat(payload: dict, request: Request = None, api_key: d
     with lock_entregas:
         dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
         condominio_id = str(payload.get("condominio_id","1"))
+        check_api_key_condominio(request, condominio_id)
         cond_config = get_cond_config(condominio_id)
         tamanho = payload.get("tamanho","P")
         box_req, _, _ = get_box_livre(dados, condominio_id, tamanho, cond_config)
@@ -1183,6 +1193,10 @@ async def api_retiradas_compat(payload: dict, request: Request = None, api_key: 
     codigo = str(payload.get("protocolo") or payload.get("codigo") or "").strip()
     if codigo.startswith("SC-") and not codigo.startswith("SC-RET-"):
         raise HTTPException(status_code=403, detail="Protocolo não abre box")
+    # PASSO C - Trava se o payload já vier com condominio_id
+    cond_payload = str(payload.get("condominio_id","") or "")
+    if cond_payload:
+        check_api_key_condominio(request, cond_payload)
     achado=None; nova_lista=[]
     for item in dados.get("lista",[]):
         if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
@@ -1190,6 +1204,8 @@ async def api_retiradas_compat(payload: dict, request: Request = None, api_key: 
         else:
             nova_lista.append(item)
     if achado:
+        # PASSO C - Trava pelo condomínio real da entrega encontrada
+        check_api_key_condominio(request, str(achado.get("condominio_id","")))
         achado["qr_valido"]=False
         dados["lista"]=nova_lista; dados["historico"].append(achado); save_json(ARQ_DADOS, dados)
         registrar_auditoria("RETIRADA_API", detalhes=codigo[:3]+"***", request=request)
@@ -1306,6 +1322,7 @@ def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_
 @app.post("/api/condfy/sync")
 def condfy_sync(payload: dict, request: Request, api_key: dict = Depends(verificar_api_key)):
     condominio_id=str(payload.get("condominio_id","")); blocos_api=payload.get("blocos",[]); moradores_api=payload.get("moradores",[])
+    check_api_key_condominio(request, condominio_id)
     conds=load_json(ARQ_CONDS, [])
     for c in conds:
         if str(c["id"])==condominio_id and blocos_api:
