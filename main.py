@@ -46,6 +46,12 @@ def verificar_tablet_token(request: Request, x_tablet_token: str = Header(None))
 # PARTE 2 - 1. TRAVA DE PORTA + ANTI-REPLAY
 _COMANDOS_ABERTURA = {}  # nonce -> timestamp
 
+# PARTE 2 - 1. TRAVA DE PORTA + ANTI-REPLAY
+_COMANDOS_ABERTURA = {}  # nonce -> timestamp
+
+# PARTE 2 - 1. TRAVA DE PORTA + ANTI-REPLAY
+_COMANDOS_ABERTURA = {}  # nonce -> timestamp
+
 @app.post("/api/tablet/abrir-porta")
 def tablet_abrir_porta(request: Request, dados: dict, tablet: dict = Depends(verificar_tablet_token)):
     condominio_id = str(request.state.tablet_condominio_id)
@@ -93,6 +99,34 @@ def tablet_abrir_porta(request: Request, dados: dict, tablet: dict = Depends(ver
         "comando": f"OPEN:{box}:{lado}",
         "nonce": nonce,
     }
+
+# PARTE 2 - 2. TIMEOUT + LOG DE PORTA ABERTA / FECHADA
+@app.post("/api/tablet/porta-evento")
+def tablet_porta_evento(request: Request, dados: dict, tablet: dict = Depends(verificar_tablet_token)):
+    condominio_id = str(request.state.tablet_condominio_id)
+    box = normalizar_box(dados.get("box", ""))
+    lado = str(dados.get("lado", "") or "").strip().upper()
+    evento = str(dados.get("evento", "") or "").strip().upper()  # ABERTA ou FECHADA
+    motivo = str(dados.get("motivo", "") or "").strip()  # TIMEOUT, MANUAL, COMANDO
+
+    if not box:
+        raise HTTPException(400, "Informe o box")
+    if lado not in ("F", "V"):
+        raise HTTPException(400, "Lado inválido, use F ou V")
+    if evento not in ("ABERTA", "FECHADA"):
+        raise HTTPException(400, "Evento inválido, use ABERTA ou FECHADA")
+
+    # Se fechou por timeout, registra como TIMEOUT
+    if evento == "FECHADA" and not motivo:
+        motivo = "TIMEOUT"
+
+    registrar_auditoria(
+        f"PORTA_{evento}",
+        detalhes=f"Box {box} Lado {lado} Motivo {motivo}",
+        condominio_id=condominio_id,
+        request=request
+    )
+    return {"ok": True, "box": box, "lado": lado, "evento": evento, "motivo": motivo}
 
 SECRET_JWT = os.getenv("SECRET_JWT")
 
