@@ -950,6 +950,59 @@ function gerarCSV(){
 
 function gerarLinkContrato(){ const c = document.getElementById('contCondSelect')?.value||''; document.getElementById('contLink').value = location.origin+'/contrato?cond='+c; }
 function copiarLinkContrato(){ navigator.clipboard.writeText(document.getElementById('contLink').value); alert('Copiado'); }
+<script>
+// === TRECHO 1 - FIX FINAL v5.9 - Excluir Cond + Salvar Contrato ===
+// Cola ANTES do </body>, DEPOIS do último </script> existente.
+// Essa versão ganha de todas as duplicatas anteriores.
+
+// EXCLUIR CONDOMÍNIO - versão certa: POST /excluir com senha
+async function excluirCondModal(id, nome){
+  if(!confirm('🗑️ EXCLUIR CONDOMÍNIO\n\n' + (nome||'') + '\n\nTem certeza?')) return;
+  let senha = prompt('Digite a SENHA ADMIN para confirmar:');
+  if(!senha){ alert('Cancelado'); return; }
+  try{
+    let r = await fetchAuth(API_BASE + '/api/condominios/' + id + '/excluir', {
+      method: 'POST',
+      headers: authHeadersJson(),
+      body: JSON.stringify({ senha: senha })
+    });
+    let t = await r.text();
+    let d = {};
+    try{ d = JSON.parse(t); }catch(e){ d = { detail: t }; }
+    if(r.ok){ alert('✅ Excluído!'); carregarConds(); carregarCondsSelect(); }
+    else alert('❌ ' + (d.detail || t));
+  }catch(e){ alert('Erro: ' + e.message); }
+}
+window.excluirCond = excluirCondModal;
+window.excluirCondominio = excluirCondModal;
+window.excluirCondominioModal = excluirCondModal;
+function fecharExcluirCond(){}
+function confirmarExcluirCond(){}
+
+// SALVAR CONTRATO - versão certa: usa cEnd / cValorMensal, PUT /condominios/{COND_ID}
+async function salvarContrato(){
+  if(!COND_ID) return alert('Abra um condomínio primeiro');
+  const body = {
+    armario_num: document.getElementById('cArm')?.value || '',
+    endereco: document.getElementById('cEnd')?.value || '',
+    valor_mensal: document.getElementById('cValorMensal')?.value || '',
+    valor_instalacao: document.getElementById('cValorInst')?.value || '',
+    status: document.getElementById('cAtivo')?.value || 'ativo',
+    vencimento: document.getElementById('cVenc')?.value || '',
+    data_inicio: document.getElementById('cDataInicio')?.value || '',
+    periodo: document.getElementById('cPeriodo')?.value || '12 meses',
+    operador: document.getElementById('cOperador')?.value || ''
+  };
+  try{
+    const r = await fetchAuth(API_BASE + '/api/condominios/' + COND_ID, {
+      method: 'PUT',
+      headers: authHeadersJson(),
+      body: JSON.stringify(body)
+    });
+    if(r.ok){ alert('✅ Contrato salvo!'); carregarConds(); }
+    else alert('❌ Erro: ' + r.status);
+  }catch(e){ alert('Erro: ' + e.message); }
+}
 </script>
 </body>
 </html>
