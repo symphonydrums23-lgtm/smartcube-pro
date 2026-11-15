@@ -1145,12 +1145,22 @@ def auth_login(payload: dict, request: Request):
         TOKENS_VALIDOS[token] = {"user": usuario,"expires": datetime.now() + timedelta(hours=8),"ip": ip}
         save_tokens()
         registrar_auditoria("LOGIN_SUCESSO", usuario=usuario, request=request)
-        resp = JSONResponse({"ok": True, "token": token, "expires_in": 28800})
+        resp = JSONResponse({"ok": True, "expires_in": 28800})
         resp.set_cookie(key="sc_token", value=token, httponly=True, max_age=28800, samesite="Lax", path="/")
         return resp
     LOGIN_TENTATIVAS[ip].append(time.time())
     registrar_auditoria("LOGIN_FALHA", usuario=usuario, detalhes=f"Tentativa falha IP {ip}", request=request)
     raise HTTPException(401, "Usuário ou senha inválido")
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request):
+    t = request.cookies.get("sc_token") or request.headers.get("x-token") or ""
+    if t and t in TOKENS_VALIDOS:
+        TOKENS_VALIDOS.pop(t, None)
+        save_tokens()
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(key="sc_token", path="/")
+    return resp
 
 @app.get("/api/auth/verificar")
 def auth_verificar(token: str = Depends(requer_auth)):
