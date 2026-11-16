@@ -1551,10 +1551,29 @@ def condfy_sync(payload: dict, request: Request, api_key: dict = Depends(verific
 
 @app.get("/api/condfy/sync")
 def condfy_sync_status(condominio: str = Query(...), token: str = Depends(requer_auth)):
-    conds=load_json(ARQ_CONDS, []); c=next((x for x in conds if str(x["id"])==condominio), None)
-    if not c: raise HTTPException(404, "Condominio nao encontrado")
-    mors=load_json(ARQ_MORS, []); qtd=len([m for m in mors if str(m.get("condominio"))==condominio])
-    return {"condominio": c, "blocos": c.get("blocos",[]), "qtd_moradores": qtd}
+    conds = load_json(ARQ_CONDS, [])
+    c = next((x for x in conds if str(x.get("id")) == condominio), None)
+    if not c:
+        raise HTTPException(404, "Condominio nao encontrado")
+    mors = load_json(ARQ_MORS, [])
+    qtd = len([m for m in mors if str(m.get("condominio")) == condominio])
+    # NUNCA devolve c inteiro - vazava cnpj, valor_mensal, valor_instalacao, endereco
+    condominio_limpo = {
+        "id": c.get("id"),
+        "nome": c.get("nome"),
+        "codigo_armario": c.get("codigo_armario"),
+        "modelo": c.get("modelo"),
+        "dupla_face": bool(c.get("dupla_face")),
+        "total_util": c.get("total_util"),
+        "total_fisico": c.get("total_fisico"),
+        "tem_blocos": bool(c.get("tem_blocos")),
+        "qtd_blocos": c.get("qtd_blocos"),
+        "blocos": c.get("blocos", []),
+        "status": c.get("status"),
+        "criado_em": c.get("criado_em"),
+    }
+    return {"condominio": condominio_limpo, "blocos": c.get("blocos", []), "qtd_moradores": qtd}
+    
 @app.post("/api/whitelabel/save")
 def whitelabel_save(payload: dict, request: Request, token: str = Depends(requer_auth)):
     dados=load_json(ARQ_WHITELABEL, {}); logo=payload.get("logo","")
