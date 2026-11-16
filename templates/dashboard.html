@@ -735,135 +735,86 @@ async function salvarContrato(){
     else alert('Erro: '+(d.detail||JSON.stringify(d)));
   }catch(e){ alert('Erro:'+e.message); }
 }
+<script>
+// === BLOCO FINAL LIMPO - 1 DE CADA - NÃO DUPLICAR ===
+
 function novoCond(){
-  document.getElementById('nArm').value="BRACO-"+Math.floor(10000+Math.random()*90000);
-  document.getElementById('modalNovoCond').style.display='flex';
+  document.getElementById('nArm').value = "ARM-" + Math.floor(10000 + Math.random()*90000);
+  document.getElementById('modalNovoCond').style.display = 'flex';
 }
 function fecharNovoCond(){
-  document.getElementById('modalNovoCond').style.display='none';
+  document.getElementById('modalNovoCond').style.display = 'none';
 }
+
 async function salvarNovoCond(){
-  let modelo=document.getElementById('nModelo').value;
-  let dupla=document.getElementById('nDuplaFace').checked;
-  let qtd_p=parseInt(document.getElementById('nQtdP').value)||1;
-  let qtd_m=parseInt(document.getElementById('nQtdM').value)||0;
-  let qtd_g=parseInt(document.getElementById('nQtdG').value)||0;
-  let temBlocos=document.getElementById('nTemBlocos')?.checked||false;
-  let qtdBlocos=parseInt(document.getElementById('nQtdBlocos')?.value||1);
-  let nomesBlocos=document.getElementById('nNomesBlocos')?.value||'';
-  let payload={nome:document.getElementById('nNome').value,cnpj:document.getElementById('nCnpj').value,endereco:document.getElementById('nEnd').value,armario_num:document.getElementById('nArm').value,modelo:modelo,dupla_face:dupla,qtd_p:qtd_p,qtd_m:qtd_m,qtd_g:qtd_g,P:qtd_p,M:qtd_m,G:qtd_g,total_boxes:qtd_p+qtd_m+qtd_g,data_inicio:document.getElementById('nDataInicio').value,periodo:document.getElementById('nPeriodo').value,valor_mensal:document.getElementById('nValor').value,valor_instalacao:document.getElementById('nValorInst').value,blocos:temBlocos,tem_blocos:temBlocos,qtd_blocos:temBlocos?qtdBlocos:1,nomes_blocos:nomesBlocos};
-  if(!payload.nome){alert('Nome obrigatório');return;}
+  let modelo = document.getElementById('nModelo').value;
+  let dupla = document.getElementById('nDuplaFace').checked;
+  let qtd_p = parseInt(document.getElementById('nQtdP').value) || 1;
+  let qtd_m = parseInt(document.getElementById('nQtdM').value) || 0;
+  let qtd_g = parseInt(document.getElementById('nQtdG').value) || 0;
+  let temBlocos = document.getElementById('nTemBlocos')?.checked || false;
+  let qtdBlocos = parseInt(document.getElementById('nQtdBlocos')?.value || 1);
+  let nomesRaw = document.getElementById('nNomesBlocos')?.value || '';
+
+  // CORRETO: blocos é array ["A","B","C"], não true/false
+  let blocos = [];
+  if(temBlocos){
+    if(nomesRaw.trim()){
+      blocos = nomesRaw.split(',').map(s=>s.trim()).filter(Boolean);
+    } else {
+      blocos = Array.from({length: qtdBlocos}, (_,i)=>String.fromCharCode(65+i));
+    }
+  }
+
+  let payload = {
+    nome: document.getElementById('nNome').value,
+    cnpj: document.getElementById('nCnpj').value,
+    endereco: document.getElementById('nEnd').value,
+    codigo_armario: document.getElementById('nArm').value,
+    modelo: modelo,
+    dupla_face: dupla,
+    qtd_p: qtd_p, qtd_m: qtd_m, qtd_g: qtd_g,
+    P: qtd_p, M: qtd_m, G: qtd_g,
+    total_boxes: qtd_p + qtd_m + qtd_g,
+    data_inicio: document.getElementById('nDataInicio').value,
+    periodo: document.getElementById('nPeriodo').value,
+    valor_mensal: document.getElementById('nValor').value,
+    valor_instalacao: document.getElementById('nValorInst').value,
+    blocos: blocos,
+    tem_blocos: temBlocos,
+    qtd_blocos: temBlocos ? blocos.length : 0,
+    nomes_blocos: nomesRaw
+  };
+  if(!payload.nome){ alert('Nome obrigatório'); return; }
   try{
-    let r=await fetchAuth(API_BASE+'/api/condominios',{method:'POST',headers:authHeadersJson(),body:JSON.stringify(payload)});
-    let d=await r.json();
-    if(r.ok){fecharNovoCond();carregarConds();carregarCondsSelect();alert(`✅ ${d.codigo_armario||d.armario_num} criado - ${qtd_p+qtd_m+qtd_g} úteis`);}
-    else alert('Erro: '+(d.detail||JSON.stringify(d)));
-  }catch(e){alert('Erro:'+e.message)}
+    let r = await fetchAuth(API_BASE + '/api/condominios', {method:'POST', headers: authHeadersJson(), body: JSON.stringify(payload)});
+    let d = await r.json();
+    if(r.ok){
+      fecharNovoCond();
+      carregarConds(); carregarCondsSelect();
+      alert(`✅ ${d.codigo_armario} criado - ${qtd_p+qtd_m+qtd_g} úteis - ${temBlocos ? blocos.length+' blocos' : ''} - Box 03 tablet`);
+    } else alert('Erro: ' + (d.detail || JSON.stringify(d)));
+  }catch(e){ alert('Erro:' + e.message); }
 }
+
 carregarCondsSelect();
 carregarDados();
 checkTokenValido();
 carregarOperadores();
-async function salvarNovoCond(){
-  let modelo=document.getElementById('nModelo').value;
-  let dupla=document.getElementById('nDuplaFace').checked;
-  let qtd_p=parseInt(document.getElementById('nQtdP').value)||1;
-  let qtd_m=parseInt(document.getElementById('nQtdM').value)||0;
-  let qtd_g=parseInt(document.getElementById('nQtdG').value)||0;
-  
-  let temBlocos=document.getElementById('nTemBlocos')?.checked||false;
-  let qtdBlocos=parseInt(document.getElementById('nQtdBlocos')?.value||1);
-  let nomesBlocos=document.getElementById('nNomesBlocos')?.value||'';
 
-  let payload={
-    nome:document.getElementById('nNome').value,
-    cnpj:document.getElementById('nCnpj').value,
-    endereco:document.getElementById('nEnd').value,
-    armario_num:document.getElementById('nArm').value,
-    modelo:modelo,
-    dupla_face:dupla,
-    qtd_p:qtd_p,qtd_m:qtd_m,qtd_g:qtd_g,
-    P:qtd_p,M:qtd_m,G:qtd_g,
-    total_boxes:qtd_p+qtd_m+qtd_g,
-    data_inicio:document.getElementById('nDataInicio').value,
-    periodo:document.getElementById('nPeriodo').value,
-    valor_mensal:document.getElementById('nValor').value,
-    valor_instalacao:document.getElementById('nValorInst').value,
-    // NOVO BLOCOS
-    blocos:temBlocos,
-    tem_blocos:temBlocos,
-    qtd_blocos:temBlocos?qtdBlocos:1,
-    nomes_blocos:nomesBlocos
-  };
-  if(!payload.nome){alert('Nome obrigatório');return;}
-  try{
-    let r=await fetchAuth(API_BASE+'/api/condominios',{method:'POST',headers:authHeadersJson(),body:JSON.stringify(payload)});
-    let d=await r.json();
-    if(r.ok){
-      fecharNovoCond();
-      carregarConds();carregarCondsSelect();
-      alert(`✅ ${d.codigo_armario||d.armario_num} criado - ${qtd_p+qtd_m+qtd_g} úteis - ${temBlocos?qtdBlocos+' blocos':''} - Box 03 tablet`);
-    }
-    else alert('Erro: '+(d.detail||JSON.stringify(d)));
-  }catch(e){alert('Erro:'+e.message)}
+// === OPERADOR - DEFINITIVO - USA API, NÃO localStorage ===
+function novoOperador(){
+  document.getElementById('opNome').value = '';
+  document.getElementById('opCnpj').value = '';
+  document.getElementById('opTel').value = '';
+  document.getElementById('opCidade').value = '';
+  document.getElementById('modalNovoOperador').style.display = 'flex';
 }
-
-// === FIX FRANQUIA v3 DEFINITIVO - NÃO TRAVA MAIS ===
-async function salvarNovoOperador(){
-  try{
-    const todosInputs = Array.from(document.querySelectorAll('input')).filter(i=>i.offsetParent!==null);
-    let nome="", cnpj="", telefone="", cidade="";
-    
-    if(todosInputs.length >= 4){
-      nome = todosInputs[todosInputs.length-4]?.value || "";
-      cnpj = todosInputs[todosInputs.length-3]?.value || "";
-      telefone = todosInputs[todosInputs.length-2]?.value || "";
-      cidade = todosInputs[todosInputs.length-1]?.value || "";
-    } else {
-      nome = todosInputs[0]?.value || "";
-    }
-
-    if(!nome || nome.trim()=="") { alert('Digite o nome do operador'); return; }
-    
-    const token = localStorage.getItem('sc_token') || localStorage.getItem('token') || "";
-    if(!token) { alert('ERRO: Você não está logado. Faça login de novo.'); return; }
-
-    const resp = await fetch('/api/operadores', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify({nome: nome.trim(), cnpj, telefone, cidade})
-    });
-    
-    const texto = await resp.text();
-    
-    if(resp.ok){
-      alert('✅ Operador '+nome+' criado com sucesso!');
-      location.reload();
-    } else {
-      alert('Erro do servidor ('+resp.status+'): '+texto);
-    }
-  } catch(err){
-    alert('Erro JS: '+err.message);
-    console.error(err);
-  }
-}
-// === FIM V3 ===
-
-document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
-document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
-</script>
-<script>
-// FIX OPERADOR SEGURO - NAO MEXA EM OUTROS BOTOES
-function novoOperador(){ document.getElementById('modalNovoOperador').style.display='flex'; }
-function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
+function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display = 'none'; }
 
 async function salvarNovoOperador(){
   let nome = document.getElementById('opNome')?.value?.trim() || '';
   if(!nome){ alert('Digite o nome'); return; }
-  let token = localStorage.getItem('sc_token') || '';
   let dados = {
     nome: nome,
     cnpj: document.getElementById('opCnpj')?.value || '',
@@ -871,14 +822,14 @@ async function salvarNovoOperador(){
     cidade: document.getElementById('opCidade')?.value || ''
   };
   try{
-    let r = await fetch(API_BASE+'/api/operadores',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(dados)});
+    let r = await fetchAuth(API_BASE + '/api/operadores', {method:'POST', headers: authHeadersJson(), body: JSON.stringify(dados)});
     let t = await r.text();
-    if(r.ok){ alert('✅ Operador '+nome+' criado!'); fecharNovoOperador(); location.reload(); }
-    else alert('Erro '+r.status+': '+t);
+    if(r.ok){ alert('✅ Operador ' + nome + ' criado!'); fecharNovoOperador(); carregarOperadores(); }
+    else alert('Erro ' + r.status + ': ' + t);
   }catch(e){ alert(e.message); }
 }
 
-// Sync cores White Label - color picker <-> texto
+// Sync cores White Label - color picker <-> texto - MANTIDO
 function syncColor(pickerId, txtId){
   const p = document.getElementById(pickerId);
   const t = document.getElementById(txtId);
@@ -890,11 +841,11 @@ function syncColor(pickerId, txtId){
   syncColor(id, id+'Txt');
 });
 
-// Salvar contrato - cVenc = cFim, cValorMensal = cValor
+// Salvar contrato - DEFINITIVO - PUT /api/condominios/{id} - MANTIDO
 async function salvarContrato(){
   if(!COND_ID) return alert('Abra um condomínio primeiro');
   const body = {
-    armario_num: document.getElementById('cArm')?.value || '',
+    codigo_armario: document.getElementById('cArm')?.value || '',
     endereco: document.getElementById('cEnd')?.value || '',
     valor_mensal: document.getElementById('cValorMensal')?.value || '',
     valor_instalacao: document.getElementById('cValorInst')?.value || '',
@@ -905,51 +856,48 @@ async function salvarContrato(){
     operador: document.getElementById('cOperador')?.value || ''
   };
   try{
-    const r = await fetchAuth(API_BASE+'/api/condominios/'+COND_ID,{method:'PUT',headers:authHeadersJson(),body:JSON.stringify(body)});
+    const r = await fetchAuth(API_BASE + '/api/condominios/' + COND_ID, {method:'PUT', headers: authHeadersJson(), body: JSON.stringify(body)});
     if(r.ok){ alert('✅ Contrato salvo!'); carregarConds(); }
-    else alert('❌ Erro: '+r.status);
-  }catch(e){ alert('Erro: '+e.message); }
+    else alert('❌ Erro: ' + r.status);
+  }catch(e){ alert('Erro: ' + e.message); }
 }
 
-// Filtro de data do modal
+// Filtro de data do modal - MANTIDO
 function aplicarFiltroData(){
   const de = document.getElementById('dataDe')?.value;
   const ate = document.getElementById('dataAte')?.value;
   if(!de && !ate) return;
-  const base = DADOS_FILTRADOS.length ? DADOS_FILTRADOS : (DADOS?.lista||[]);
+  const base = DADOS_FILTRADOS.length ? DADOS_FILTRADOS : (DADOS?.lista || []);
   const filtrado = base.filter(i=>{
-    const d = (i.data||'').slice(0,10) || (i.created_at||'').slice(0,10);
+    const d = (i.data || '').slice(0,10) || (i.created_at || '').slice(0,10);
     if(de && d < de) return false;
     if(ate && d > ate) return false;
     return true;
   });
   DADOS_FILTRADOS = filtrado;
-  if(TIPO_ATUAL) abrirModalLista(filtrado, document.getElementById('modalTitulo')?.innerText||'Filtrado');
+  if(TIPO_ATUAL) abrirModalLista(filtrado, document.getElementById('modalTitulo')?.innerText || 'Filtrado');
   else renderHistFiltrado(filtrado);
 }
 function renderHistFiltrado(lista){
-  HIST_CACHE = lista.map(x=>({...x,_tipo: x.data_retirada?'retirada':'entrega'}));
+  HIST_CACHE = lista.map(x=>({...x, _tipo: x.data_retirada ? 'retirada' : 'entrega'}));
   renderHist();
 }
 
-// Export CSV
+// Export CSV - MANTIDO
 function gerarCSV(){
-  const lista = DADOS_FILTRADOS.length ? DADOS_FILTRADOS : (DADOS?.lista||[]);
+  const lista = DADOS_FILTRADOS.length ? DADOS_FILTRADOS : (DADOS?.lista || []);
   if(!lista.length) return alert('Nada pra exportar');
   const csv = 'Protocolo,Bloco,Apto,Box,Data,Codigo\n' + lista.map(i=>`${i.protocolo||i.codigo||''},${i.bloco||''},${i.apartamento||i.apto||''},${i.box||''},${i.data||''},${i.codigo_retirada||i.codigo||''}`).join('\n');
-  const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='relatorio-smartcube.csv'; a.click();
+  const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'relatorio-smartcube.csv'; a.click();
 }
 
-function gerarLinkContrato(){ const c = document.getElementById('contCondSelect')?.value||''; document.getElementById('contLink').value = location.origin+'/contrato?cond='+c; }
+function gerarLinkContrato(){ const c = document.getElementById('contCondSelect')?.value || ''; document.getElementById('contLink').value = location.origin + '/contrato?cond=' + c; }
 function copiarLinkContrato(){ navigator.clipboard.writeText(document.getElementById('contLink').value); alert('Copiado'); }
-</script>
-<script>
-// === TRECHO 1 - FIX FINAL v5.9 - Excluir Cond + Salvar Contrato ===
 
-// EXCLUIR CONDOMÍNIO - versão certa: POST /excluir com senha
+// === EXCLUIR CONDOMÍNIO - DEFINITIVO - POST /excluir com senha ===
 async function excluirCondModal(id, nome){
-  if(!confirm('🗑️ EXCLUIR CONDOMÍNIO\n\n' + (nome||'') + '\n\nTem certeza?')) return;
+  if(!confirm('🗑️ EXCLUIR CONDOMÍNIO\n\n' + (nome || '') + '\n\nTem certeza?')) return;
   let senha = prompt('Digite a SENHA ADMIN para confirmar:');
   if(!senha){ alert('Cancelado'); return; }
   try{
@@ -970,6 +918,9 @@ window.excluirCondominio = excluirCondModal;
 window.excluirCondominioModal = excluirCondModal;
 function fecharExcluirCond(){}
 function confirmarExcluirCond(){}
+
+// Dupla Face - 1x só - MANTIDO
+document.getElementById('nDuplaFace')?.addEventListener('change', atualizarPreset);
 </script>
 </body>
 </html>
