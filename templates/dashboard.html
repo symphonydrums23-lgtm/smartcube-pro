@@ -505,9 +505,59 @@ async function corrigirArm(id){
 async function delMor(id){if(!confirm('Excluir?'))return;try{await fetchAuth(API_BASE+'/api/moradores?id='+id,{method:'DELETE'});carregarMoradores(COND_ID);}catch(e){}}
 function addMor(){let nome=prompt('Nome:');if(!nome)return;let bloco=prompt('Bloco:')||'';let apto=prompt('Apto:')||'';fetchAuth(API_BASE+'/api/moradores',{method:'POST',headers:authHeadersJson(),body:JSON.stringify({nome,bloco,apto,condominio:COND_ID})}).then(()=>carregarMoradores(COND_ID));}
 async function importarCSV(){let f=document.getElementById('impFile').files[0];if(!f)return;let fd=new FormData();fd.append('file',f);fd.append('condominio',COND_ID);try{await fetchAuth(API_BASE+'/api/moradores/import',{method:'POST',body:fd});carregarMoradores(COND_ID);}catch(e){}}
-async function carregarFinanceiro(){try{let r=await fetchAuth(API_BASE+'/api/condominios');let conds=await r.json();let ativos=conds.filter(c=>String(c.id)!='1'&&c.status=='ativo');let mrr=0;ativos.forEach(c=>{let v=parseFloat(String(c.valor_mensal||'0').replace(',','.'));if(!isNaN(v))mrr+=v;});let lista=document.getElementById('listaFinanceiro');if(lista){lista.innerHTML=ativos.map(c=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:11px"><span><b>${c.nome}</b> • ${c.armario_num||''} ${c.modelo||''} ${c.dupla_face?' DUPLA':''}</span><span>R$ ${c.valor_mensal||'0,00'}</span></div>`).join('')||'Sem dados';}document.getElementById('finMrr').innerText='R$ '+mrr.toFixed(2).replace('.',',');document.getElementById('finMrrSub').innerText=ativos.length+' condomínios ativos';document.getElementById('finReceber').innerText='R$ '+mrr.toFixed(2).replace('.',',');}catch(e){}}
-function exportarFinanceiroCSV(){}
-function exportarFinanceiroPDF(){}
+async function carregarFinanceiro(){
+  try{
+    // 1. Totais - vem do backend, sem vazar CNPJ / valor por condomínio
+    let r = await fetchAuth(API_BASE + '/api/financeiro/resumo');
+    let f = await r.json();
+    if(!r.ok) throw new Error(f.detail || 'Erro financeiro');
+    let elMrr = document.getElementById('finMrr');
+    if(elMrr) elMrr.innerText = f.mrr_formatado;
+    let elSub = document.getElementById('finMrrSub');
+    if(elSub) elSub.innerText = f.ativos + ' condomínios ativos';
+    let elRec = document.getElementById('finReceber');
+    if(elRec) elRec.innerText = f.mrr_formatado;
+
+    // 2. Lista - só nome / modelo / armário, SEM valor por condomínio
+    // Valor por condomínio não vem mais no GET /api/condominios por segurança
+    let r2 = await fetchAuth(API_BASE + '/api/condominios');
+    let conds = await r2.json();
+    let ativos = conds.filter(c => String(c.id) != '1' && c.status == 'ativo');
+    let lista = document.getElementById('listaFinanceiro');
+    if(lista){
+      lista.innerHTML = ativos.map(c => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:11px"><span><b>${c.nome}</b> • ${c.codigo_armario || c.armario_num || ''} ${c.modelo || ''} ${c.dupla_face ? ' DUPLA' : ''}</span><span style="color:#888">—</span></div>`).join('') || 'Sem dados';
+    }
+  }catch(e){ console.log('Financeiro:', e.message); }
+}
+async function exportarFinanceiroCSV(){
+  try{
+    let r = await fetchAuth(API_BASE + '/api/financeiro/resumo');
+    let f = await r.json();
+    let r2 = await fetchAuth(API_BASE + '/api/condominios');
+    let conds = await r2.json();
+    let ativos = conds.filter(c => String(c.id) != '1' && c.status == 'ativo');
+    let csv = 'Condomínio,Código,Modelo,Dupla Face\n' + ativos.map(c => `"${(c.nome||'').replace(/"/g,'')}",${c.codigo_armario||''},${c.modelo||''},${c.dupla_face?'SIM':'NÃO'}`).join('\n') + `\n\nMRR Total,${f.mrr_formatado}\nAtivos,${f.ativos}\nTaxa Ocupação,${f.taxa_ocupacao}%`;
+    let blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8'});
+    let a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'financeiro-smartcube.csv';
+    a.click();
+  }catch(e){ alert('Erro: ' + e.message); }
+}
+async function exportarFinanceiroPDF(){
+  try{
+    let r = await fetchAuth(API_BASE + '/api/financeiro/resumo');
+    let f = await r.json();
+    let r2 = await fetchAuth(API_BASE + '/api/condominios');
+    let conds = await r2.json();
+    let ativos = conds.filter(c => String(c.id) != '1' && c.status == 'ativo');
+    let linhas = ativos.map(c => `<tr><td>${c.nome||''}</td><td>${c.codigo_armario||''}</td><td>${c.modelo||''}</td><td>${c.dupla_face?'SIM':'NÃO'}</td></tr>`).join('');
+    let html = `<html><head><title>Financeiro Smart Cube</title><style>body{font-family:Arial;padding:30px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;font-size:12px;text-align:left}th{background:#111;color:#fff}</style></head><body><h2>Financeiro - Smart Cube</h2><p><b>MRR:</b> ${f.mrr_formatado} | <b>Ativos:</b> ${f.ativos} | <b>Ocupação:</b> ${f.taxa_ocupacao}% | <b>Ocupados:</b> ${f.ocupados} / ${f.total_util}</p><table><tr><th>Condomínio</th><th>Código</th><th>Modelo</th><th>Dupla Face</th></tr>${linhas}</table><p style="font-size:11px;color:#888">Gerado em ${new Date().toLocaleString('pt-BR')} - Sem CNPJ / valores por condomínio</p><script>window.onload=()=>window.print()<\/script></body></html>`;
+    let w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+  }catch(e){ alert('Erro: ' + e.message); }
+}
 function exportarHistoricoCSV(){gerarCSV();}
 function exportarHistoricoPDF(){gerarPDF();}
 async function carregarCondsCheck(){try{let r=await fetchAuth(API_BASE+'/api/condominios');let conds=await r.json();let div=document.getElementById('listaCondsCheck');if(div)div.innerHTML=conds.filter(c=>String(c.id)!='1').map(c=>`<label class="check-item"><input type="checkbox" value="${c.id}"> ${c.nome} (${c.armario_num||''}) ${c.modelo||''}</label>`).join('');}catch(e){}}
