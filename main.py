@@ -1461,7 +1461,6 @@ def condfy_sync_status(condominio: str = Query(...), token: str = Depends(requer
     if not c: raise HTTPException(404, "Condominio nao encontrado")
     mors=load_json(ARQ_MORS, []); qtd=len([m for m in mors if str(m.get("condominio"))==condominio])
     return {"condominio": c, "blocos": c.get("blocos",[]), "qtd_moradores": qtd}
-
 @app.post("/api/whitelabel/save")
 def whitelabel_save(payload: dict, request: Request, token: str = Depends(requer_auth)):
     dados=load_json(ARQ_WHITELABEL, {}); logo=payload.get("logo","")
@@ -1473,6 +1472,33 @@ def whitelabel_save(payload: dict, request: Request, token: str = Depends(requer
 def whitelabel_public():
     return load_json(ARQ_WHITELABEL, {"logo_url": "/logo.png"})
 
+# === WHITELABEL - DEFINITIVO - GET + POST /api/whitelabel ===
+# Usa requer_auth igual o /save - não inventa get_usuario_atual
+# Usa MERGE - não apaga os campos do /save antigo
+
+@app.get("/api/whitelabel")
+def get_whitelabel(token: str = Depends(requer_auth)):
+    dados = load_json(ARQ_WHITELABEL, {})
+    if not dados:
+        return {"nome": "", "nome_empresa": "", "descricao": "", "cor_fundo": "#FFFFFF", "cor_primaria": "#C10010", "cor_qr": "#000000", "cor_botao": "#C10010", "cor_frase": "#000000", "cor_sair": "#C10010", "logo_url": "/logo.png"}
+    return dados
+
+@app.post("/api/whitelabel")
+async def post_whitelabel(request: Request, token: str = Depends(requer_auth)):
+    novo = await request.json()
+    # Aceita os 2 nomes - dashboard manda 'nome', /save manda 'nome_empresa'
+    if not novo.get("nome") and not novo.get("nome_empresa"):
+        raise HTTPException(status_code=400, detail="Nome da marca é obrigatório")
+    dados = load_json(ARQ_WHITELABEL, {})
+    # MERGE - mantém o que já tinha, só atualiza o que veio
+    dados.update(novo)
+    dados["nome_empresa"] = novo.get("nome_empresa") or novo.get("nome") or dados.get("nome_empresa", "")
+    dados["nome"] = novo.get("nome") or novo.get("nome_empresa") or dados.get("nome", "")
+    dados["atualizado_em"] = now_brt().isoformat()
+    dados["salvo_em"] = now_brt().isoformat()
+    save_json(ARQ_WHITELABEL, dados)
+    return {"ok": True, "msg": "Marca salva", "dados": dados}
+    
 @app.post("/api/validar-apto")
 def validar_apto(payload: dict):
     apto=str(payload.get("apto","")).strip()
