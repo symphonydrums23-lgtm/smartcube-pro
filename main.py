@@ -8,6 +8,21 @@ import json, os, secrets, uuid, csv, io, time, jwt, threading, hashlib, binascii
 from collections import defaultdict
 from dotenv import load_dotenv
 load_dotenv()
+from zoneinfo import ZoneInfo
+BRT = ZoneInfo("America/Sao_Paulo")
+
+def now_brt():
+    return datetime.now(BRT)
+
+app = FastAPI(title="Smart Cube API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 lock_entregas = threading.Lock()
 
