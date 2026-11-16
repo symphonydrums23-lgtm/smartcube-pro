@@ -1453,12 +1453,88 @@ def _set_cache_ia(k, data):
 
 @app.get("/api/ia/lotacao-24h")
 def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcional)):
-    cached=_get_cache_ia("lotacao_"+condominio)
-    if cached: return cached
-    raw=load_json(ARQ_DADOS, {"lista":[],"historico":[]})
-    lista = raw.get("lista",[]) if str(condominio)=="1" else [x for x in raw.get("lista",[]) if str(x.get("condominio_id"))==str(condominio)]
-    perc=int(len(lista)/int(raw.get("total_boxes",16))*100) if raw.get("total_boxes") else 0
-    resultado={"condominio":condominio,"ocupados":len(lista),"previsao_percent":min(100,perc+15),"total_atrasados":0,"alertas_24h":[],"atualizado":datetime.now().isoformat(),"versao":"v5.8.5-tablet-ocupa"}
+    cached = _get_cache_ia("lotacao_"+condominio)
+    if cached:
+        return cached
+    raw = load_json(ARQ_DADOS, {"lista":[],"historico":[]})
+    conds = load_json(ARQ_CONDS, [])
+    if str(condominio) == "1":
+        lista = raw.get("lista", [])
+        total_util = 0
+        for c in conds:
+            if str(c.get("id")) == "1":
+                continue
+            try:
+                total_util += int(c.get("total_util") or c.get("total_boxes") or 0)
+            except:
+                pass
+        if not total_util:
+            total_util = int(raw.get("total_boxes", 16))
+    else:
+        lista = [x for x in raw.get("lista", []) if str(x.get("condominio_id")) == str(condominio)]
+        c_target = next((c for c in conds if str(c.get("id")) == str(condominio)), None)
+        total_util = int(c_target.get("total_util") or c_target.get("total_boxes") or 16) if c_target else int(raw.get("total_boxes", 16))
+    ocupados = len(lista)
+    perc = int(ocupados / total_util * 100) if total_util else 0
+    # Atrasados de verdade - mais de 72h sem retirar
+    atrasados = []
+    alertas = []
+    agora = now_brt()
+    for item in lista:
+        try:
+            created_str = item.get("created_at", "")
+            if not created_str:
+                continue
+            try:
+                created = datetime.fromisoformat(created_str)
+            except:
+                created = datetime.strptime(created_str, "%Y-%m-%dT%H:%M:%S")
+            if created.tzinfo is None:
+                created = BRT.localize(created)
+            horas = (agora - created).total_seconds() / 3600
+            if horas > 72:
+                atrasados.append(item)
+                alertas.append({
+                    "box": item.get("box"),
+                    "bloco": item.get("bloco"),
+                    "apartamento": item.get("apartamento"),
+                    "horas": round(horas, 1),
+                    "protocolo": item.get("protocolo"),
+                })
+        except:
+            pass
+    # Previsão real - média simples: se lotou 10% nas últimas 24h, projeta +10%
+    # Sem inventar +15. Se não tem histórico, previsão = ocupação atual
+    previsao = perc
+    try:
+        hist = raw.get("historico", [])
+        ultimas_24h = 0
+        for h in hist:
+            try:
+                dt = datetime.fromisoformat(h.get("created_at", ""))
+                if dt.tzinfo is None:
+                    dt = BRT.localize(dt)
+                if (agora - dt).total_seconds() < 86400:
+                    ultimas_24h += 1
+            except:
+                pass
+        if total_util:
+            previsao = min(100, perc + int(ultimas_24h / total_util * 100))
+    except:
+        pass
+    resultado = {
+        "condominio": condominio,
+        "total_util": total_util,
+        "ocupados": ocupados,
+        "livres": max(0, total_util - ocupados),
+        "ocupacao_percent": perc,
+        "previsao_percent": previsao,
+        "total_atrasados": len(atrasados),
+        "atrasados": atrasados[:20],
+        "alertas_24h": alertas[:20],
+        "atualizado": now_brt().isoformat(),
+        "versao": "v5.8.5-tablet-ocupa-real",
+    }
     _set_cache_ia("lotacao_"+condominio, resultado)
     return resultado
 
