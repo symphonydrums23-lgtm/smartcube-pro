@@ -46,12 +46,6 @@ def verificar_tablet_token(request: Request, x_tablet_token: str = Header(None))
 # PARTE 2 - 1. TRAVA DE PORTA + ANTI-REPLAY
 _COMANDOS_ABERTURA = {}  # nonce -> timestamp
 
-# PARTE 2 - 1. TRAVA DE PORTA + ANTI-REPLAY
-_COMANDOS_ABERTURA = {}  # nonce -> timestamp
-
-# PARTE 2 - 1. TRAVA DE PORTA + ANTI-REPLAY
-_COMANDOS_ABERTURA = {}  # nonce -> timestamp
-
 @app.post("/api/tablet/abrir-porta")
 def tablet_abrir_porta(request: Request, dados: dict, tablet: dict = Depends(verificar_tablet_token)):
     condominio_id = str(request.state.tablet_condominio_id)
@@ -1415,30 +1409,77 @@ def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcio
     _set_cache_ia("lotacao_"+condominio, resultado)
     return resultado
 
+# FILA ESP32 - dashboard manda, ESP32 lê no poll
+_FILA_ABERTURA = []  # [{box, condominio_id, nonce, criado_em}]
+
 @app.post("/api/admin/abrir-box/{box_id}")
-def abrir_box_remoto(box_id: str, request: Request, token: str = Depends(requer_auth)):
+def abrir_box_remoto(box_id: str, payload: dict, request: Request, token: str = Depends(requer_auth)):
     box_id = str(box_id).zfill(2)
     if not box_id.isdigit() or not 1 <= int(box_id) <= 32:
         raise HTTPException(400, "Box inválido")
     if box_id in BOXES_TABLET_RESERVADOS:
         raise HTTPException(400, "Box 03 é do tablet, não pode abrir remotamente - trava dupla face")
-    registrar_auditoria("ABERTURA_REMOTA_ADMIN", usuario=TOKENS_VALIDOS.get(token,{}).get("user","admin"), detalhes=f"Abertura remota Box {box_id}", request=request)
+    # OBRIGATÓRIO - sem isso abre Box de outro condomínio
+    condominio_id = str((payload or {}).get("condominio_id") or request.query_params.get("condominio_id") or "").strip()
+    if not condominio_id or condominio_id == "1":
+        raise HTTPException(400, "Informe condominio_id real. '1' não é permitido.")
+    # Confere se existe entrega ativa NESSE condomínio NESSE box
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
     achado = None
-    nova_lista = []
-    for item in dados.get("lista",[]):
-        if str(item.get("box")).zfill(2) == box_id:
+    for item in dados.get("lista", []):
+        if str(item.get("condominio_id")) == condominio_id and str(item.get("box")).zfill(2) == box_id:
             achado = item
-        else:
-            nova_lista.append(item)
-    if achado:
-        achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y")
-        achado["hora_retirada"] = datetime.now().strftime("%H:%M")
-        achado["retirada_por"] = "ADMIN_REMOTO"
-        dados["lista"] = nova_lista
-        dados["historico"].append(achado)
-        save_json(ARQ_DADOS, dados)
-    return {"ok": True, "box": box_id, "msg": f"Comando de abertura enviado para Box {box_id} - libera frente e verso (mesma caixa física)"}
+            break
+    if not achado:
+        raise HTTPException(404, f"Nenhuma entrega ativa no Box {box_id} neste condomínio")
+    # Joga na fila - NÃO marca como retirado ainda, ESP32 confirma depois
+    nonce = f"ADMIN-{condominio_id}-{box_id}-{int(time.time())}"
+    _FILA_ABERTURA.append({
+        "box": box_id,
+        "condominio_id": condominio_id,
+        "nonce": nonce,
+        "origem": "ADMIN_REMOTO",
+        "criado_em": now_brt().isoformat(),
+    })
+    registrar_auditoria("ABERTURA_REMOTA_ADMIN", usuario=TOKENS_VALIDOS.get(token,{}).get("user","admin"), detalhes=f"Abertura remota Box {box_id} Cond {condominio_id} Nonce {nonce}", condominio_id=condominio_id, request=request)
+    return {"ok": True, "box": box_id, "condominio_id": condominio_id, "nonce": nonce, "msg": f"Comando na fila - Box {box_id} Cond {condominio_id}"}
+
+# ESP32 lê - já deixa pronto pra quinta
+@app.get("/api/esp32/poll")
+def esp32_poll(condominio_id: str = Query(...)):
+    agora = time.time()
+    # Limpa fila velha > 60s
+    _FILA_ABERTURA[:] = [c for c in _FILA_ABERTURA if agora - time.mktime(datetime.fromisoformat(c["criado_em"]).timetuple()) < 60] if _FILA_ABERTURA else []
+    cmds = [c for c in _FILA_ABERTURA if str(c["condominio_id"]) == str(condominio_id)]
+    return {"ok": True, "comandos": cmds}
+
+@app.post("/api/esp32/confirmar")
+def esp32_confirmar(payload: dict, request: Request):
+    nonce = str(payload.get("nonce") or "").strip()
+    if not nonce:
+        raise HTTPException(400, "Nonce obrigatório")
+    for c in list(_FILA_ABERTURA):
+        if c["nonce"] == nonce:
+            _FILA_ABERTURA.remove(c)
+            # Agora sim marca como retirado
+            dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+            nova_lista = []
+            achado = None
+            for item in dados.get("lista", []):
+                if str(item.get("condominio_id")) == str(c["condominio_id"]) and str(item.get("box")).zfill(2) == str(c["box"]).zfill(2) and not achado:
+                    achado = item
+                else:
+                    nova_lista.append(item)
+            if achado:
+                achado["data_retirada"] = now_brt().strftime("%d/%m/%Y")
+                achado["hora_retirada"] = now_brt().strftime("%H:%M")
+                achado["retirada_por"] = "ADMIN_REMOTO_ESP32"
+                dados["lista"] = nova_lista
+                dados["historico"].append(achado)
+                save_json(ARQ_DADOS, dados)
+            registrar_auditoria("ABERTURA_ESP32_CONFIRMADA", detalhes=f"Box {c['box']} Cond {c['condominio_id']} Nonce {nonce}", condominio_id=c["condominio_id"], request=request)
+            return {"ok": True, "box": c["box"]}
+    raise HTTPException(404, "Nonce não encontrado ou expirado")
 
 @app.post("/api/condfy/sync")
 def condfy_sync(payload: dict, request: Request, api_key: dict = Depends(verificar_api_key)):
