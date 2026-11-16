@@ -124,9 +124,6 @@ def tablet_porta_evento(request: Request, dados: dict, tablet: dict = Depends(ve
 
 SECRET_JWT = os.getenv("SECRET_JWT")
 
-SECRET_JWT = os.getenv("SECRET_JWT")
-
-SECRET_JWT = os.getenv("SECRET_JWT")
 if not SECRET_JWT or len(SECRET_JWT) < 32:
     raise RuntimeError("SECRET_JWT ausente ou fraco (<32 chars). Defina no .env")
 
