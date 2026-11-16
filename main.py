@@ -606,6 +606,62 @@ def get_cond(cond_id: str, token: str = Depends(requer_auth)):
             c["qtd_moradores"] = len([m for m in mors if str(m.get("condominio")) == str(cond_id)])
             return c
     raise HTTPException(404, "Condomínio não encontrado")
+
+# FINANCEIRO - só total, nunca devolve CNPJ / valor por condomínio
+@app.get("/api/financeiro/resumo")
+def financeiro_resumo(token: str = Depends(requer_auth)):
+    conds = load_json(ARQ_CONDS, [])
+    mrr = 0.0
+    instalacao_total = 0.0
+    ativos = 0
+    total_conds = 0
+    por_modelo = {}
+    for c in conds:
+        if str(c.get("id")) == "1":
+            continue
+        total_conds += 1
+        if str(c.get("status", "ativo")).lower() == "ativo":
+            ativos += 1
+        try:
+            v = float(str(c.get("valor_mensal") or "0").replace("R$", "").replace(".", "").replace(",", ".").strip() or 0)
+        except:
+            v = 0.0
+        try:
+            vi = float(str(c.get("valor_instalacao") or "0").replace("R$", "").replace(".", "").replace(",", ".").strip() or 0)
+        except:
+            vi = 0.0
+        mrr += v
+        instalacao_total += vi
+        modelo = str(c.get("modelo") or "SEM_MODELO")
+        por_modelo[modelo] = por_modelo.get(modelo, 0) + 1
+    # Ocupação real
+    dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+    total_util = 0
+    for c in conds:
+        if str(c.get("id")) == "1":
+            continue
+        try:
+            total_util += int(c.get("total_util") or c.get("total_boxes") or 0)
+        except:
+            pass
+    ocupados = len(dados.get("lista", []))
+    livres = max(0, total_util - ocupados)
+    taxa = round((ocupados / total_util * 100) if total_util else 0, 1)
+    return {
+        "ok": True,
+        "mrr": round(mrr, 2),
+        "mrr_formatado": f"R$ {mrr:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+        "instalacao_total": round(instalacao_total, 2),
+        "total_condominios": total_conds,
+        "ativos": ativos,
+        "total_util": total_util,
+        "ocupados": ocupados,
+        "livres": livres,
+        "taxa_ocupacao": taxa,
+        "por_modelo": por_modelo,
+        "atualizado": now_brt().isoformat(),
+    }
+
 @app.post("/api/tablet/registrar")
 def registrar_tablet(payload: dict, request: Request, token: str = Depends(requer_auth)):
     condominio_id = str(payload.get("condominio_id") or payload.get("condominio") or "").strip()
