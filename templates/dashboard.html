@@ -724,13 +724,32 @@ function atualizarBlocosResumo(){
   if(el) el.innerText=q+' bloco'+(q>1?'s':'');
 }
 
-let OPERADORES_CACHE = JSON.parse(localStorage.getItem('sc_operadores')||'[]');
-function novoOperador(){document.getElementById('opNome').value='';document.getElementById('opCnpj').value='';document.getElementById('opTel').value='';document.getElementById('opCidade').value='';document.getElementById('modalNovoOperador').style.display='flex';}
-function fecharNovoOperador(){ document.getElementById('modalNovoOperador').style.display='none'; }
-function salvarNovoOperador(){let nome=document.getElementById('opNome').value.trim();if(!nome){ alert('Nome obrigatório'); return; }let novo={id:'OP-'+Date.now(), nome:nome, cnpj:document.getElementById('opCnpj').value, tel:document.getElementById('opTel').value, cidade:document.getElementById('opCidade').value, criados:0, criado_em:new Date().toLocaleDateString('pt-BR')};OPERADORES_CACHE.push(novo);localStorage.setItem('sc_operadores', JSON.stringify(OPERADORES_CACHE));fecharNovoOperador();carregarOperadores();}
-function carregarOperadores(){let div=document.getElementById('listaOperadores');let divDist=document.getElementById('distribOperador');let sel=document.getElementById('cOperador');if(!div) return;if(OPERADORES_CACHE.length==0){div.innerHTML='<div style="font-size:11px;color:#888">Nenhum operador. Clique em + Novo Operador</div>';} else {div.innerHTML=OPERADORES_CACHE.map(o=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:10px"><div><b>${o.nome}</b><div style="font-size:10px;color:#888">${o.cidade||''} • ${o.tel||''} • ${o.id}</div></div><div style="display:flex;gap:6px"><span style="background:#DCFCE7;color:#166534;padding:2px 8px;border-radius:99px;font-size:10px">${o.criados||0} armários</span><button class="btn btn-g" onclick="delOperador('${o.id}')">X</button></div></div>`).join('');}if(divDist) divDist.innerHTML=OPERADORES_CACHE.map(o=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:11px"><span>${o.nome}</span><span style="font-weight:700">${o.criados||0} armários</span></div>`).join('')||'Sem dados';if(sel){ sel.innerHTML='<option value="">Sem operador (Matriz)</option>'+OPERADORES_CACHE.map(o=>`<option value="${o.id}">${o.nome}</option>`).join(''); }}
-function delOperador(id){ if(!confirm('Excluir?')) return; OPERADORES_CACHE=OPERADORES_CACHE.filter(o=>o.id!=id); localStorage.setItem('sc_operadores', JSON.stringify(OPERADORES_CACHE)); carregarOperadores(); }
+async function carregarOperadores(){
+  let div = document.getElementById('listaOperadores');
+  let divDist = document.getElementById('distribOperador');
+  let sel = document.getElementById('cOperador');
+  if(!div) return;
+  try{
+    let r = await fetchAuth(API_BASE + '/api/operadores');
+    let ops = await r.json();
+    if(!Array.isArray(ops)) ops = [];
+    if(ops.length === 0){
+      div.innerHTML = '<div style="font-size:11px;color:#888">Nenhum operador. Clique em + Novo Operador</div>';
+    } else {
+      div.innerHTML = ops.map(o=>`<div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:10px"><div><b>${o.nome}</b><div style="font-size:10px;color:#888">${o.cidade||''} • ${o.telefone||o.tel||''} • ${o.id}</div></div><div style="display:flex;gap:6px"><button class="btn btn-g" onclick="delOperador('${o.id}')">X</button></div></div>`).join('');
+    }
+    if(divDist) divDist.innerHTML = ops.map(o=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:11px"><span>${o.nome}</span><span style="font-weight:700">${o.cidade||''}</span></div>`).join('') || 'Sem dados';
+    if(sel) sel.innerHTML = '<option value="">Sem operador (Matriz)</option>' + ops.map(o=>`<option value="${o.id}">${o.nome}</option>`).join('');
+  }catch(e){ div.innerHTML = '<div style="color:red;font-size:11px">Erro ao carregar operadores</div>'; }
+}
 
+async function delOperador(id){
+  if(!confirm('Excluir operador?')) return;
+  try{
+    await fetchAuth(API_BASE + '/api/operadores/' + id, {method:'DELETE'});
+    carregarOperadores();
+  }catch(e){ alert('Erro: ' + e.message); }
+}
 let EX_ID=null;
 let EX_NOME_CACHE='';
 function excluirCondModal(id,nome){
