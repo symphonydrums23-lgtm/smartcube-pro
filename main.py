@@ -1299,7 +1299,7 @@ def auth_login(payload: dict, request: Request):
     if usuario == ADMIN_USER and senha == ADMIN_PASS:
         LOGIN_TENTATIVAS[ip].clear()
         token = "sc_" + secrets.token_urlsafe(32)
-        TOKENS_VALIDOS[token] = {"user": usuario,"expires": datetime.now() + timedelta(hours=8),"ip": ip}
+        TOKENS_VALIDOS[token] = {"user": usuario,"expires": now_brt() + timedelta(hours=8),"ip": ip}
         save_tokens()
         registrar_auditoria("LOGIN_SUCESSO", usuario=usuario, request=request)
         resp = JSONResponse({"ok": True, "expires_in": 28800})
