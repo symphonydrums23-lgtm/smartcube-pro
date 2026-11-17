@@ -1497,7 +1497,7 @@ def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcio
             except:
                 created = datetime.strptime(created_str, "%Y-%m-%dT%H:%M:%S")
             if created.tzinfo is None:
-                created = BRT.localize(created)
+                created = created.replace(tzinfo=BRT)
             horas = (agora - created).total_seconds() / 3600
             if horas > 72:
                 atrasados.append(item)
