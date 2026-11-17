@@ -811,10 +811,29 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
             raise HTTPException(status_code=403, detail="Código pertence a outro condomínio")
         if not achado:
             raise HTTPException(status_code=404, detail="Código não encontrado ou já utilizado")
-        # Morador retira pela porta V (interna), mas libera o mesmo box 05
-            box_liberado = normalizar_box(achado.get("box"))
-    try:
-        expira = datetime.fromisoformat(achado.get("expira_em", ""))
+                # Morador retira pela porta V (interna), mas libera o mesmo box 05
+        box_liberado = normalizar_box(achado.get("box"))
+        try:
+            expira = datetime.fromisoformat(achado.get("expira_em", ""))
+            if now_brt() > expira:
+                achado["qr_valido"] = False
+                dados["lista"] = nova_lista
+                dados["historico"].append(achado)
+                save_json(ARQ_DADOS, dados)
+                raise HTTPException(status_code=410, detail="QR Code expirado")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+        achado["data_retirada"] = now_brt().strftime("%d/%m/%Y")
+        achado["hora_retirada"] = now_brt().strftime("%H:%M")
+        achado["qr_valido"] = False
+        achado["box"] = box_liberado
+        achado["porta_retirada"] = "V"
+        achado["face"] = "dupla"
+        dados["lista"] = nova_lista
+        dados["historico"].append(achado)
+        save_json(ARQ_DADOS, dados)
         if now_brt() > expira:
             achado["qr_valido"] = False
             dados["lista"] = nova_lista
