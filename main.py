@@ -14,7 +14,10 @@ BRT = ZoneInfo("America/Sao_Paulo")
 def now_brt():
     return datetime.now(BRT)
 
-app = FastAPI(title="Smart Cube API")
+def now_brt_str(fmt="%d/%m/%Y %H:%M:%S"):
+    return now_brt().strftime(fmt)
+
+app = FastAPI(title="SmartCube API v5.8")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,13 +28,6 @@ app.add_middleware(
 )
 
 lock_entregas = threading.Lock()
-
-import pytz
-BRT = pytz.timezone('America/Sao_Paulo')
-def now_brt():
-    return datetime.now(BRT)
-def now_brt_str(fmt="%d/%m/%Y %H:%M:%S"):
-    return now_brt().strftime(fmt)
 
 ARQ_COMERCIAL = "comercial.json"
 ARQ_CONTRATOS = "contratos.json"
