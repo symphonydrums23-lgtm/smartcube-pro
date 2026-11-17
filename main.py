@@ -1096,7 +1096,7 @@ def criar_operador(payload: dict, request: Request = None, token: str = Depends(
         raise HTTPException(status_code=400, detail="Condomínio, bloco, apto e senha são obrigatórios")
     users = load_json(ARQ_APP_USERS, [])
     existente = next((u for u in users if str(u.get("condominio"))==condominio and str(u.get("bloco")).lower()==bloco.lower() and str(u.get("apto")).lower()==apto.lower()), None)
-        novo_user = {
+    novo_user = {
         "id": existente["id"] if existente else str(uuid.uuid4())[:8],
         "condominio": condominio,
         "bloco": bloco,
@@ -1114,7 +1114,6 @@ def criar_operador(payload: dict, request: Request = None, token: str = Depends(
     registrar_auditoria("CRIOU_OPERADOR", detalhes=f"Operador {nome} {bloco}/{apto} Cond {condominio}", condominio_id=condominio, request=request)
     usuario_retorno = {k: v for k, v in novo_user.items() if k != "senha_hash"}
     return {"ok": True, "usuario": usuario_retorno}
-
 @app.get("/api/usuarios")
 def listar_usuarios(condominio: str = Query(None), token: str = Depends(requer_auth)):
     users = load_json(ARQ_APP_USERS, [])
