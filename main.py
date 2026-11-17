@@ -1520,7 +1520,7 @@ def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcio
             try:
                 dt = datetime.fromisoformat(h.get("created_at", ""))
                 if dt.tzinfo is None:
-                    dt = BRT.localize(dt)
+                    dt = dt.replace(tzinfo=BRT)
                 if (agora - dt).total_seconds() < 86400:
                     ultimas_24h += 1
             except:
