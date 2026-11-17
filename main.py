@@ -1348,15 +1348,15 @@ async def api_entregas_compat(payload: dict, request: Request = None, api_key: d
             "codigo_retirada": codigo_morador,
             "qr_code": f"SC-RET-{secrets.token_hex(6).upper()}",
             "protocolo": payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}",
-           "data": payload.get("data") or now_brt().strftime("%d/%m/%Y"),
-           "hora": payload.get("hora") or now_brt().strftime("%H:%M"),
-           "created_at": payload.get("data_hora") or now_brt().isoformat(),
-           "expira_em": (now_brt()+timedelta(hours=72)).isoformat()
+            "data": payload.get("data") or now_brt().strftime("%d/%m/%Y"),
+            "hora": payload.get("hora") or now_brt().strftime("%H:%M"),
+            "created_at": payload.get("data_hora") or now_brt().isoformat(),
+            "expira_em": (now_brt() + timedelta(hours=72)).isoformat(),
             "condominio_id": condominio_id,
-            "qr_valido": True,
-            "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
+            "qr_valido": True
         }
-        dados["lista"].append(nova); save_json(ARQ_DADOS, dados)
+        dados["lista"].append(nova)
+        save_json(ARQ_DADOS, dados)
         registrar_auditoria("ENTREGA_API", detalhes=nova["protocolo"], request=request)
         return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "bloco": nova["bloco"]}
 
@@ -1370,32 +1370,42 @@ async def api_retiradas_compat(payload: dict, request: Request = None, api_key: 
     cond_payload = str(payload.get("condominio_id","") or "")
     if cond_payload:
         check_api_key_condominio(request, cond_payload)
-    achado=None; nova_lista=[]
+    achado = None
+    nova_lista = []
     for item in dados.get("lista",[]):
         if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
-            achado=item
+            achado = item
         else:
             nova_lista.append(item)
     if achado:
         # PASSO C - Trava pelo condomínio real da entrega encontrada
         check_api_key_condominio(request, str(achado.get("condominio_id","")))
-        achado["qr_valido"]=False
-        dados["lista"]=nova_lista; dados["historico"].append(achado); save_json(ARQ_DADOS, dados)
+        achado["qr_valido"] = False
+        dados["lista"] = nova_lista
+        dados["historico"].append(achado)
+        save_json(ARQ_DADOS, dados)
         registrar_auditoria("RETIRADA_API", detalhes=codigo[:3]+"***", request=request)
         return {"ok": True, "box": achado["box"]}
     raise HTTPException(404, "Código não encontrado")
 
-def get_app_users(): return load_json(ARQ_APP_USERS, [])
-def save_app_users(data): save_json(ARQ_APP_USERS, data)
+def get_app_users():
+    return load_json(ARQ_APP_USERS, [])
+
+def save_app_users(data):
+    save_json(ARQ_APP_USERS, data)
 
 def verificar_app_token(request: Request, authorization: str = Header(None)):
     token = ""
-    if authorization and "Bearer" in authorization: token = authorization.replace("Bearer ","").strip()
-    if not token: token = request.headers.get("x-token") or ""
-    if not token: raise HTTPException(401, "Token do App obrigatório")
-    try: return jwt.decode(token, SECRET_JWT, algorithms=["HS256"])
-    except: raise HTTPException(401, "Token App inválido")
-
+    if authorization and "Bearer" in authorization:
+        token = authorization.replace("Bearer ","").strip()
+    if not token:
+        token = request.headers.get("x-token") or ""
+    if not token:
+        raise HTTPException(401, "Token do App obrigatório")
+    try:
+        return jwt.decode(token, SECRET_JWT, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(401, "Token App inválido")
 @app.post("/api/app/auth/login")
 def app_login(payload: dict, request: Request):
     condominio = str(payload.get("condominio","1"))
