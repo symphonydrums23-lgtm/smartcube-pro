@@ -820,7 +820,7 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
         if not achado:
             raise HTTPException(status_code=404, detail="Código não encontrado ou já utilizado")
         # Morador retira pela porta V (interna), mas libera o mesmo box 05
-           box_liberado = normalizar_box(achado.get("box"))
+            box_liberado = normalizar_box(achado.get("box"))
     try:
         expira = datetime.fromisoformat(achado.get("expira_em", ""))
         if now_brt() > expira:
