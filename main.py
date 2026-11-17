@@ -1137,13 +1137,13 @@ def criar_franquia(payload: dict, request: Request = None, token: str = Depends(
     if not nome:
         raise HTTPException(400, "Nome do operador obrigatório")
     franqs = load_json(ARQ_FRANQUIAS, [])
-    novo = {
+       novo = {
         "id": str(uuid.uuid4())[:8],
         "nome": nome,
         "cnpj_cpf": payload.get("cnpj") or payload.get("cnpj_cpf") or "",
         "telefone": payload.get("telefone") or "",
         "cidade": payload.get("cidade") or "",
-        "criado_em": datetime.now().isoformat()
+        "criado_em": now_brt().isoformat()
     }
     franqs.append(novo)
     save_json(ARQ_FRANQUIAS, franqs)
