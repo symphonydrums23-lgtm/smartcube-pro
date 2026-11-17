@@ -385,7 +385,7 @@ def limpar_retencao():
     # 3.3 - LGPD: anonimiza histórico com mais de 90 dias
     try:
         dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
-        limite = datetime.now() - timedelta(days=90)
+        limite = now_brt() - timedelta(days=90)
         mudou = False
         for h in dados.get("historico", []):
             try:
