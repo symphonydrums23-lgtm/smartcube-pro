@@ -19,14 +19,6 @@ def now_brt_str(fmt="%d/%m/%Y %H:%M:%S"):
 
 app = FastAPI(title="SmartCube API v5.8")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 lock_entregas = threading.Lock()
 
 ARQ_COMERCIAL = "comercial.json"
