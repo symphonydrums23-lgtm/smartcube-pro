@@ -1354,9 +1354,10 @@ async def api_entregas_compat(payload: dict, request: Request = None, api_key: d
             "codigo_retirada": codigo_morador,
             "qr_code": f"SC-RET-{secrets.token_hex(6).upper()}",
             "protocolo": payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}",
-            "data": payload.get("data") or datetime.now().strftime("%d/%m/%Y"),
-            "hora": payload.get("hora") or datetime.now().strftime("%H:%M"),
-            "created_at": payload.get("data_hora") or datetime.now().isoformat(),
+           "data": payload.get("data") or now_brt().strftime("%d/%m/%Y"),
+           "hora": payload.get("hora") or now_brt().strftime("%H:%M"),
+           "created_at": payload.get("data_hora") or now_brt().isoformat(),
+           "expira_em": (now_brt()+timedelta(hours=72)).isoformat()
             "condominio_id": condominio_id,
             "qr_valido": True,
             "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
