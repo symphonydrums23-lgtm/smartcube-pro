@@ -1169,7 +1169,7 @@ def gerar_api_key_generica(payload: dict, request: Request, token: str = Depends
         "api_key": nova_key,
         "condominios": conds,
         "tipo": "generica_condfy",
-        "criado_em": datetime.now().isoformat(),
+        "criado_em": now_brt().isoformat(),
     }
     keys.append(novo)
     save_json(ARQ_KEYS, keys)
