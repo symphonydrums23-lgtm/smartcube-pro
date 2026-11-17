@@ -1258,7 +1258,7 @@ def dashboard_dados(condominio: str = "1", token: str = Depends(requer_auth)):
             except:
                 created = datetime.strptime(created_str, "%Y-%m-%dT%H:%M:%S")
             if created.tzinfo is None:
-                created = BRT.localize(created)
+                created = created.replace(tzinfo=BRT)
             if (agora - created).total_seconds() / 3600 > 72:
                 vencidas_lista.append(item)
         except:
