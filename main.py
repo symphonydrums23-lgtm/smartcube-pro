@@ -262,7 +262,7 @@ def is_token_valid(token: str) -> bool:
             TOKENS_VALIDOS.pop(token, None); save_tokens(); return False
     except Exception:
         try:
-            if datetime.now() > dados["expires"]:
+            if now_brt() > dados["expires"]:
                 TOKENS_VALIDOS.pop(token, None); save_tokens(); return False
         except:
             return False
