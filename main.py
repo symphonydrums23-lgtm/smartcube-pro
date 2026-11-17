@@ -778,16 +778,10 @@ async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = 
             "codigo_retirada": codigo_morador,
             "qr_code": qr_morador,
             "protocolo": protocolo_entregador,
-            "data": datetime.now().strftime("%d/%m/%Y"),
-            "hora": datetime.now().strftime("%H:%M"),
-            "nome": payload.get("nome",""),
-            "created_at": datetime.now().isoformat(),
-            "condominio_id": condominio_id,
-            "tamanho_solicitado": tamanho_solicitado,
-            "tamanho_real": tamanho_final,
-            "upgrade": foi_upgrade,
-            "qr_valido": True,
-            "expira_em": (datetime.now()+timedelta(hours=72)).isoformat()
+            "data": now_brt().strftime("%d/%m/%Y"),
+            "hora": now_brt().strftime("%H:%M"),
+            "created_at": now_brt().isoformat(),
+            "expira_em": (now_brt()+timedelta(hours=72)).isoformat()
         }
         if foi_upgrade:
             for bx in (cond_config.get("boxes_lista",[]) if cond_config else []):
@@ -800,6 +794,7 @@ async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = 
         save_json(ARQ_DADOS, dados)
         registrar_auditoria("ENTREGA_TABLET", detalhes=f"Box {nova['box']} Bloco:{nova['bloco']} Apto:{nova['apartamento']} {tamanho_solicitado}->{nova['tamanho_real']} Prot {nova['protocolo']} Cond {condominio_id}", condominio_id=condominio_id, request=request)
         return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "codigo": codigo_morador, "qr_code": qr_morador, "tamanho_solicitado": tamanho_solicitado, "tamanho_real": nova["tamanho_real"], "upgrade": foi_upgrade, "bloco": nova["bloco"], "apartamento": nova["apartamento"]}
+
 @app.post("/api/tablet/retirada")
 async def tablet_retirada(payload: dict, request: Request = None, tablet: dict = Depends(verificar_tablet_token)):
     with FILE_LOCK:
