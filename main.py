@@ -826,28 +826,28 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
         # Morador retira pela porta V (interna), mas libera o mesmo box 05
         box_liberado = normalizar_box(achado.get("box"))
         try:
-            expira = datetime.fromisoformat(achado.get("expira_em",""))
-            if datetime.now() > expira:
-                achado["qr_valido"]=False
-                dados["lista"]=nova_lista
-                dados["historico"].append(achado)
-                save_json(ARQ_DADOS, dados)
-                raise HTTPException(status_code=410, detail="QR Code expirado")
-        except HTTPException:
-            raise
-        except:
-            pass
-        achado["data_retirada"] = datetime.now().strftime("%d/%m/%Y")
-        achado["hora_retirada"] = datetime.now().strftime("%H:%M")
-        achado["qr_valido"] = False
-        achado["box"] = box_liberado
-        achado["porta_retirada"] = "V"
-        achado["face"] = "dupla"
-        dados["lista"]=nova_lista
-        dados["historico"].append(achado)
-        save_json(ARQ_DADOS, dados)
-        registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {box_liberado} liberado pela porta V Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", condominio_id=condominio_tablet, request=request)
-        return {"ok": True, "box": box_liberado, "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
+        expira = datetime.fromisoformat(achado.get("expira_em",""))
+        if now_brt() > expira:
+            achado["qr_valido"]=False
+            dados["lista"]=nova_lista
+            dados["historico"].append(achado)
+            save_json(ARQ_DADOS, dados)
+            raise HTTPException(status_code=410, detail="QR Code expirado")
+    except HTTPException:
+        raise
+    except:
+        pass
+    achado["data_retirada"] = now_brt().strftime("%d/%m/%Y")
+    achado["hora_retirada"] = now_brt().strftime("%H:%M")
+    achado["qr_valido"] = False
+    achado["box"] = box_liberado
+    achado["porta_retirada"] = "V"
+    achado["face"] = "dupla"
+    dados["lista"]=nova_lista
+    dados["historico"].append(achado)
+    save_json(ARQ_DADOS, dados)
+    registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {box_liberado} liberado pela porta V Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", condominio_id=condominio_tablet, request=request)
+    return {"ok": True, "box": box_liberado, "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
 
 # ETAPA 2.1 - DEPÓSITO INTERNO: morador / zelador / síndico devolve encomenda errada pelo lado de dentro
 # Sem sair do condomínio. O box continua o mesmo, só troca o destino.
