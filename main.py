@@ -1062,7 +1062,7 @@ def atualizar_cond(cond_id: str, payload: dict, request: Request = None, token: 
                 c["boxes_config"]={"P":qtd_p,"M":qtd_m,"G":qtd_g}
                 c["boxes_lista"]=gerar_boxes_lista(total_util_lado, qtd_p_lado, qtd_m_lado, qtd_g_lado, c.get("G_boxes"))
                 c["label_dupla"]=f"FRENTE: {total_fisico//2} portas ({total_util//2} úteis + 1 tablet) | VERSO: {total_fisico//2} portas" if dupla else f"{total_util} úteis + 1 Tablet = {total_fisico} portas"
-            c["atualizado_em"]=datetime.now().isoformat()
+                c["atualizado_em"]=now_brt().isoformat()
             save_json(ARQ_CONDS, conds)
             return c
     raise HTTPException(404)
