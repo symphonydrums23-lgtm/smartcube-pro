@@ -17,7 +17,6 @@
   // Quem valida a sessão agora é o cookie httponly no /api/auth/verificar
 })();
 </script>
-</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -772,19 +771,7 @@ window.excluirCond = excluirCondModal;
 window.excluirCondominio = excluirCondModal;
 window.excluirCondominioModal = excluirCondModal;
 
-async function salvarContrato(){
-  let payload={
-    armario_num:document.getElementById('cArm').value,
-    endereco:document.getElementById('cFim').value,
-    valor_mensal:document.getElementById('cValor').value
-  };
-  try{
-    let r=await fetchAuth(API_BASE+'/api/condominios/'+payload.armario_num+'/contrato',{method:'POST',headers:authHeadersJson(),body:JSON.stringify(payload)});
-    let d=await r.json();
-    if(r.ok){ alert('Contrato salvo'); if(typeof fecharContratoModal==='function') fecharContratoModal(); carregarConds(); }
-    else alert('Erro: '+(d.detail||JSON.stringify(d)));
-  }catch(e){ alert('Erro:'+e.message); }
-}
+</script>
 <script>
 // === BLOCO FINAL LIMPO - 1 DE CADA - NÃO DUPLICAR ===
 
