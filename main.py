@@ -1705,11 +1705,23 @@ async def post_whitelabel(request: Request, token: str = Depends(requer_auth)):
     
 @app.post("/api/validar-apto")
 def validar_apto(payload: dict):
-    apto=str(payload.get("apto","")).strip()
     import re
+    condominio_id = str(payload.get("condominio_id") or payload.get("condominio") or "").strip()
+    bloco = str(payload.get("bloco") or "").strip().upper()
+    apto = str(payload.get("apto") or payload.get("apartamento") or "").strip().upper()
+
     if not re.match(r"^[0-9]+[A-Za-z]?$|^[A-Za-z0-9\-/]+$", apto):
         raise HTTPException(400, "Formato apto invalido. Use 12, 12A, 12B")
-    return {"ok": True, "apto": apto.upper()}
+    if not condominio_id or condominio_id == "1":
+        raise HTTPException(400, "Informe condominio_id real")
+
+    mors = load_json(ARQ_MORS, [])
+    achado = next((m for m in mors if str(m.get("condominio")) == condominio_id
+                   and str(m.get("bloco","")).upper() == bloco
+                   and str(m.get("apto") or m.get("apartamento","")).upper() == apto), None)
+    if not achado:
+        raise HTTPException(404, "Morador não encontrado neste bloco/apto")
+    return {"ok": True, "apto": apto, "bloco": bloco, "morador": achado.get("nome",""), "condominio_id": condominio_id}
 
 @app.get("/api/comercial/vendedores")
 def listar_vendedores(token: str = Depends(requer_auth)):
