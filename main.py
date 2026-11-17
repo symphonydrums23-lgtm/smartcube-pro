@@ -1695,6 +1695,8 @@ async def post_whitelabel(request: Request, token: str = Depends(requer_auth)):
     save_json(ARQ_WHITELABEL, dados)
     return {"ok": True, "msg": "Marca salva", "dados": dados}
     
+ARQ_MORS = "moradores.json"
+
 @app.post("/api/validar-apto")
 def validar_apto(payload: dict):
     import re
@@ -1708,13 +1710,17 @@ def validar_apto(payload: dict):
         raise HTTPException(400, "Informe condominio_id real")
 
     mors = load_json(ARQ_MORS, [])
-    achado = next((m for m in mors if str(m.get("condominio")) == condominio_id
+    # Se moradores.json vier como dict, extrai a lista
+    if isinstance(mors, dict):
+        mors = mors.get("moradores", []) or mors.get("data", []) or []
+
+    achado = next((m for m in mors if str(m.get("condominio_id") or m.get("condominio")) == condominio_id
                    and str(m.get("bloco","")).upper() == bloco
                    and str(m.get("apto") or m.get("apartamento","")).upper() == apto), None)
     if not achado:
         raise HTTPException(404, "Morador não encontrado neste bloco/apto")
     return {"ok": True, "apto": apto, "bloco": bloco, "morador": achado.get("nome",""), "condominio_id": condominio_id}
-
+    
 @app.get("/api/comercial/vendedores")
 def listar_vendedores(token: str = Depends(requer_auth)):
     return load_json(ARQ_VENDEDORES, [])
