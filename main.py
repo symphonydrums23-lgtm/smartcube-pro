@@ -1431,7 +1431,7 @@ def app_login(payload: dict, request: Request):
         registrar_auditoria("LOGIN_APP_FALHA", usuario=bloco+"/"+apto, condominio_id=condominio, request=request)
         raise HTTPException(401, "Senha inválida")
     role = u.get("role","morador")
-    token = jwt.encode({"sub": f"{condominio}-{bloco}-{apto}", "condominio": condominio, "bloco": bloco, "apto": apto, "role": role, "nome": mor["nome"], "exp": datetime.now()+timedelta(days=30)}, SECRET_JWT, algorithm="HS256")
+    token = jwt.encode({"sub": f"{condominio}-{bloco}-{apto}", "condominio": condominio, "bloco": bloco, "apto": apto, "role": role, "nome": mor["nome"], "exp": now_brt()+timedelta(days=30)}, SECRET_JWT, algorithm="HS256")
     registrar_auditoria("LOGIN_APP", usuario=mor["nome"], condominio_id=condominio, request=request)
     return {"ok": True, "token": token, "user": {"nome": mor["nome"], "role": role, "condominio": condominio, "bloco": bloco, "apto": apto}}
 
