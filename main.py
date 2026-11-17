@@ -1132,7 +1132,7 @@ def criar_franquia(payload: dict, request: Request = None, token: str = Depends(
     if not nome:
         raise HTTPException(400, "Nome do operador obrigatório")
     franqs = load_json(ARQ_FRANQUIAS, [])
-       novo = {
+    novo = {
         "id": str(uuid.uuid4())[:8],
         "nome": nome,
         "cnpj_cpf": payload.get("cnpj") or payload.get("cnpj_cpf") or "",
@@ -1144,7 +1144,6 @@ def criar_franquia(payload: dict, request: Request = None, token: str = Depends(
     save_json(ARQ_FRANQUIAS, franqs)
     registrar_auditoria("CRIOU_FRANQUIA", detalhes=f"{nome} {novo['cidade']}", request=request)
     return {"ok": True, "operador": novo}
-
 @app.delete("/api/operadores/{op_id}")
 def excluir_operador(op_id: str, request: Request = None, token: str = Depends(requer_auth)):
     franqs = load_json(ARQ_FRANQUIAS, [])
