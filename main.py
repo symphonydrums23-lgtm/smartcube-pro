@@ -1715,8 +1715,6 @@ async def post_whitelabel(request: Request, token: str = Depends(requer_auth)):
     dados["salvo_em"] = now_brt().isoformat()
     save_json(ARQ_WHITELABEL, dados)
     return {"ok": True, "msg": "Marca salva", "dados": dados}
-    
-ARQ_MORS = "moradores.json"
 
 @app.post("/api/validar-apto")
 def validar_apto(payload: dict, request: Request, tablet: dict = Depends(verificar_tablet_token)):
