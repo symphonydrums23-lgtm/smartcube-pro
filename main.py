@@ -186,48 +186,6 @@ def tablet_porta_evento(request: Request, dados: dict, tablet: dict = Depends(ve
     )
     return {"ok": True, "box": box, "lado": lado, "evento": evento, "motivo": motivo}
 
-SECRET_JWT = os.getenv("SECRET_JWT")
-
-if not SECRET_JWT or len(SECRET_JWT) < 32:
-    raise RuntimeError("SECRET_JWT ausente ou fraco (<32 chars). Defina no .env")
-
-ADMIN_USER = os.getenv("SMARTCUBE_USER")
-ADMIN_PASS = os.getenv("SMARTCUBE_ADMIN_PASS")
-if not ADMIN_USER or not ADMIN_PASS:
-    raise RuntimeError("SMARTCUBE_USER e SMARTCUBE_ADMIN_PASS obrigatórios no .env")
-
-ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "")
-if ALLOWED_ORIGINS_RAW:
-    ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
-else:
-    ALLOWED_ORIGINS = [
-        "http://localhost:5000", "http://127.0.0.1:5000",
-        "https://localhost:5000",
-        "http://localhost:3000",
-    ]
-ALLOWED_ORIGIN_REGEX = r"https://.*\.github\.io|https://.*\.onrender\.com|https://.*\.vercel\.app|https://.*\.netlify\.app"
-
-app = FastAPI(title="SmartCube API v5.8 - TABLET OCUPA BOX")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-ALT_TEMPLATES = os.path.join(BASE_DIR, "modelos")
-if not os.path.exists(TEMPLATES_DIR) and os.path.exists(ALT_TEMPLATES):
-    TEMPLATES_DIR = ALT_TEMPLATES
-
-FILE_LOCK = threading.RLock()
-BOX_TABLET_RESERVADO = "03"
-BOXES_TABLET_RESERVADOS = {"03", "3", "03F", "03V", "03_F", "03_V", "03-F", "03-V"}
-
 MODELOS_PRESET = {
     "1_BOX": {"label": "1 Box (Kit)", "fisico": 2, "util": 1, "P": 1, "M": 0, "G": 0, "G_boxes": []},
     "8_BOXES": {"label": "8 Boxes", "fisico": 8, "util": 7, "P": 4, "M": 2, "G": 1, "G_boxes": ["08"]},
