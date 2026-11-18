@@ -414,32 +414,33 @@ function limparFiltro(){document.getElementById('dataDe').value='';document.getE
 
 async function abrirCond(id){
   try{
-    COND_ID=id;
-    let r=await fetchAuth(API_BASE+'/api/condominios/'+id);
-    if(!r.ok){ alert('Erro ao abrir: '+r.status); return; }
-    let c=await r.json();
-    document.getElementById('dNome').innerText=c.nome||'Sem nome';
-    document.getElementById('cArm').value=c.armario_num || c.armario_numero || c.codigo_armario || c.armario_id || '';
-    document.getElementById('cEnd').value=c.endereco||'';
-    document.getElementById('cValorMensal').value=c.valor_mensal||'';
-    document.getElementById('cValorInst').value=c.valor_instalacao||'';
-    document.getElementById('cAtivo').value=c.status||'ativo';
-    document.getElementById('cVenc').value=c.vencimento||'';
-    document.getElementById('cDataInicio').value=c.data_inicio||'';
-    document.getElementById('cPeriodo').value=c.periodo||'12 meses';
-    let selOp=document.getElementById('cOperador');
-    if(selOp && c.operador) selOp.value=c.operador;
-    let detailPMG=document.getElementById('detailPMG');
+    COND_ID = id;
+    let r = await fetchAuth(API_BASE + '/api/condominios/' + id);
+    if(!r.ok){ alert('Erro ao abrir: ' + r.status); return; }
+    let c = await r.json();
+    document.getElementById('dNome').innerText = c.nome || 'Sem nome';
+    // Item 2 - usa codigo_armario / ARM- como fonte principal
+    document.getElementById('cArm').value = c.codigo_armario || c.armario_num || c.armario_numero || c.armario_id || '';
+    document.getElementById('cEnd').value = c.endereco || '';
+    document.getElementById('cValorMensal').value = c.valor_mensal || '';
+    document.getElementById('cValorInst').value = c.valor_instalacao || '';
+    document.getElementById('cAtivo').value = c.status || 'ativo';
+    document.getElementById('cVenc').value = c.vencimento || '';
+    document.getElementById('cDataInicio').value = c.data_inicio || '';
+    document.getElementById('cPeriodo').value = c.periodo || '12 meses';
+    let selOp = document.getElementById('cOperador');
+    if(selOp && c.operador) selOp.value = c.operador;
+    let detailPMG = document.getElementById('detailPMG');
     if(detailPMG){
-      let modelo=c.modelo||'18_BOXES';
-      let dupla=c.dupla_face?'Sim 🔁 Dupla Face':'Não';
-      detailPMG.innerHTML=`<b>📦 Modelo: ${modelo}</b> | ${c.total_util||c.total_boxes} úteis / ${c.total_fisico||''} físicos | P:${c.qtd_p||''} M:${c.qtd_m||''} G:${c.qtd_g||''} | ${dupla} | Box 03 Tablet 🔒<br><small style="color:#6B7280">G boxes: ${(c.G_boxes||[]).join(',')} | Overflow P->M->G ativo</small>`;
+      let modelo = c.modelo || '18_BOXES';
+      let dupla = c.dupla_face ? 'Sim 🔁 Dupla Face' : 'Não';
+      detailPMG.innerHTML = `<b>📦 Modelo: ${modelo}</b> | ${c.total_util || c.total_boxes} úteis / ${c.total_fisico || ''} físicos | P:${c.qtd_p || ''} M:${c.qtd_m || ''} G:${c.qtd_g || ''} | ${dupla} | Box 03 Tablet 🔒<br><small style="color:#6B7280">G boxes: ${(c.G_boxes || []).join(',')} | Overflow P->M->G ativo</small>`;
     }
     show('detail');
     carregarMoradores(id);
   }catch(e){
     console.error(e);
-    alert('Erro ao abrir: '+e.message);
+    alert('Erro ao abrir: ' + e.message);
   }
 }
 
