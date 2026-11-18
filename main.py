@@ -1587,7 +1587,7 @@ def esp32_poll(condominio_id: str = Query(...), _esp: bool = Depends(verificar_e
     return {"ok": True, "comandos": cmds}
 
 @app.post("/api/esp32/confirmar")
-def esp32_confirmar(payload: dict, request: Request):
+def esp32_confirmar(payload: dict, request: Request, _esp: bool = Depends(verificar_esp32_token)):
     nonce = str(payload.get("nonce") or "").strip()
     if not nonce:
         raise HTTPException(400, "Nonce obrigatório")
