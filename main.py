@@ -17,8 +17,6 @@ def now_brt():
 def now_brt_str(fmt="%d/%m/%Y %H:%M:%S"):
     return now_brt().strftime(fmt)
 
-app = FastAPI(title="SmartCube API v5.8")
-
 lock_entregas = threading.Lock()
 
 ARQ_COMERCIAL = "comercial.json"
