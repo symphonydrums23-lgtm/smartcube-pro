@@ -1417,6 +1417,7 @@ def verificar_app_token(request: Request, authorization: str = Header(None)):
         return jwt.decode(token, SECRET_JWT, algorithms=["HS256"])
     except Exception:
         raise HTTPException(401, "Token App inválido")
+        
 @app.post("/api/app/auth/login")
 def app_login(payload: dict, request: Request):
     condominio = str(payload.get("condominio","1"))
