@@ -761,7 +761,8 @@ async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = 
             qr_morador = f"SC-RET-{secrets.token_hex(6).upper()}"
             if qr_morador not in existentes_qr:
                 break
-        protocolo_entregador = payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}"
+        # CORRIGIDO: protocolo sempre gerado no servidor, nunca aceita do frontend
+        protocolo_entregador = f"SC-ENT-{condominio_id}-{int(time.time())}-{secrets.token_hex(3).upper()}"
         nova = {
             "box": str(box_escolhido).zfill(2),
             "condominio_id": condominio_id,
