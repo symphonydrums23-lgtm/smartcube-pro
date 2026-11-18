@@ -1648,9 +1648,19 @@ def esp32_poll(request: Request, condominio_id: str = Query(None), _esp: bool = 
 
 @app.post("/api/esp32/confirmar")
 def esp32_confirmar(payload: dict, request: Request, _esp: bool = Depends(verificar_esp32_token)):
+    cond_esp = getattr(request.state, "esp32_condominio_id", "") or ""
+    if not cond_esp:
+        raise HTTPException(400, "Header x-condominio-id obrigatorio no ESP")
     nonce = str(payload.get("nonce") or "").strip()
     if not nonce:
         raise HTTPException(400, "Nonce obrigatório")
+    # PROVA FISICA: ESP tem que provar que a porta realmente abriu
+    porta_aberta = payload.get("porta_aberta")
+    sensor = payload.get("sensor_abertura")
+    reed = payload.get("reed")
+    prova = porta_aberta is True or sensor is True or reed is True
+    if not prova:
+        raise HTTPException(400, "Prova fisica obrigatoria: ESP precisa enviar porta_aberta=true ou sensor_abertura=true")
     # ANTI-REPLAY: nonce já usado não abre de novo
     agora_ts = time.time()
     # limpa nonces expirados pra não crescer infinito
@@ -1662,6 +1672,8 @@ def esp32_confirmar(payload: dict, request: Request, _esp: bool = Depends(verifi
         raise HTTPException(409, "Nonce já utilizado - replay bloqueado")
     for c in list(_FILA_ABERTURA):
         if c["nonce"] == nonce:
+            if str(c["condominio_id"]) != cond_esp:
+                raise HTTPException(403, "Nonce de outro condominio")
             _FILA_ABERTURA.remove(c)
             # Marca nonce como usado por 10 minutos
             _NONCES_USADOS.add(nonce)
@@ -1679,10 +1691,11 @@ def esp32_confirmar(payload: dict, request: Request, _esp: bool = Depends(verifi
                 achado["data_retirada"] = now_brt().strftime("%d/%m/%Y")
                 achado["hora_retirada"] = now_brt().strftime("%H:%M")
                 achado["retirada_por"] = "ADMIN_REMOTO_ESP32"
+                achado["prova_fisica"] = {"porta_aberta": porta_aberta, "sensor_abertura": sensor, "reed": reed}
                 dados["lista"] = nova_lista
                 dados["historico"].append(achado)
                 save_json(ARQ_DADOS, dados)
-            registrar_auditoria("ABERTURA_ESP32_CONFIRMADA", detalhes=f"Box {c['box']} Cond {c['condominio_id']} Nonce {nonce}", condominio_id=c["condominio_id"], request=request)
+            registrar_auditoria("ABERTURA_ESP32_CONFIRMADA", detalhes=f"Box {c['box']} Cond {c['condominio_id']} Nonce {nonce} Prova {porta_aberta}/{sensor}/{reed}", condominio_id=c["condominio_id"], request=request)
             return {"ok": True, "box": c["box"]}
     raise HTTPException(404, "Nonce não encontrado ou expirado")
 
