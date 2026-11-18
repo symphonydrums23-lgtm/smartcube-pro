@@ -862,7 +862,6 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
         nonce = f"RET-{condominio_tablet}-{achado.get('box')}-{int(time.time())}-{secrets.token_hex(3).upper()}"
         achado["nonce_retirada"] = nonce
         _FILA_ABERTURA.append({
-      _FILA_ABERTURA.append({
         "box": str(achado.get("box")).zfill(2),
         "condominio_id": condominio_tablet,
         "nonce": nonce,
