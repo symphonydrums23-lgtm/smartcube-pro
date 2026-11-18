@@ -1633,7 +1633,13 @@ def abrir_box_por_condominio(cond_id: str, payload: dict, request: Request, toke
     
 # ESP32 lê - já deixa pronto pra quinta
 @app.get("/api/esp32/poll")
-def esp32_poll(condominio_id: str = Query(...), _esp: bool = Depends(verificar_esp32_token)):
+def esp32_poll(request: Request, condominio_id: str = Query(None), _esp: bool = Depends(verificar_esp32_token)):
+    cond_esp = getattr(request.state, "esp32_condominio_id", "") or ""
+    if not cond_esp:
+        raise HTTPException(400, "Header x-condominio-id obrigatorio no ESP")
+    if condominio_id and str(condominio_id) != cond_esp:
+        raise HTTPException(403, "condominio_id da query diferente do header do ESP")
+    condominio_id = cond_esp
     agora = time.time()
     # Limpa fila velha > 60s
     _FILA_ABERTURA[:] = [c for c in _FILA_ABERTURA if agora - time.mktime(datetime.fromisoformat(c["criado_em"]).timetuple()) < 60] if _FILA_ABERTURA else []
