@@ -1601,6 +1601,14 @@ def abrir_box_remoto(box_id: str, payload: dict, request: Request, token: str = 
     registrar_auditoria("ABERTURA_REMOTA_ADMIN", usuario=TOKENS_VALIDOS.get(token,{}).get("user","admin"), detalhes=f"Abertura remota Box {box_id} Cond {condominio_id} Nonce {nonce}", condominio_id=condominio_id, request=request)
     return {"ok": True, "box": box_id, "condominio_id": condominio_id, "nonce": nonce, "msg": f"Comando na fila - Box {box_id} Cond {condominio_id}"}
 
+@app.post("/api/condominios/{cond_id}/abrir-box")
+def abrir_box_por_condominio(cond_id: str, payload: dict, request: Request, token: str = Depends(requer_auth)):
+    box = str(payload.get("box") or payload.get("box_id") or "").strip()
+    if not box:
+        raise HTTPException(400, "Informe o box")
+    payload_admin = {"condominio_id": str(cond_id), "box": box, "motivo": payload.get("motivo", "ABERTURA_REMOTA_ADMIN")}
+    return abrir_box_remoto(box, payload_admin, request, token)
+    
 # ESP32 lê - já deixa pronto pra quinta
 @app.get("/api/esp32/poll")
 def esp32_poll(condominio_id: str = Query(...)):
