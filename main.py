@@ -792,69 +792,30 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
             raise HTTPException(status_code=400, detail="Código obrigatório")
         if codigo.startswith("SC-") and not codigo.startswith("SC-RET-"):
             raise HTTPException(status_code=403, detail="Protocolo de entregador não abre box. Use código do morador.")
-              # P0-1: RETIRADA TRAVADA NO CONDOMÍNIO DO TOKEN
+        # P0-1: RETIRADA TRAVADA NO CONDOMINIO DO TOKEN
         condominio_tablet = str(getattr(request.state, "tablet_condominio_id", "") or tablet.get("condominio_id") or "").strip()
         achado = None
         nova_lista = []
         achado_outro_cond = False
         for item in dados.get("lista",[]):
             if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
-                # Se o código é de outro condomínio, não libera e marca
                 if str(item.get("condominio_id","")) != condominio_tablet:
                     achado_outro_cond = True
                     nova_lista.append(item)
-                    continue
-                achado=item
+                else:
+                    achado = item
             else:
                 nova_lista.append(item)
-        if achado_outro_cond and not achado:
+        if achado_outro_cond:
             raise HTTPException(status_code=403, detail="Código pertence a outro condomínio")
         if not achado:
-            raise HTTPException(status_code=404, detail="Código não encontrado ou já utilizado")
-                # Morador retira pela porta V (interna), mas libera o mesmo box 05
-        box_liberado = normalizar_box(achado.get("box"))
-        try:
-            expira = datetime.fromisoformat(achado.get("expira_em", ""))
-            if now_brt() > expira:
-                achado["qr_valido"] = False
-                dados["lista"] = nova_lista
-                dados["historico"].append(achado)
-                save_json(ARQ_DADOS, dados)
-                raise HTTPException(status_code=410, detail="QR Code expirado")
-        except HTTPException:
-            raise
-        except Exception:
-            pass
-        achado["data_retirada"] = now_brt().strftime("%d/%m/%Y")
-        achado["hora_retirada"] = now_brt().strftime("%H:%M")
+            raise HTTPException(status_code=404, detail="Código não encontrado")
         achado["qr_valido"] = False
-        achado["box"] = box_liberado
-        achado["porta_retirada"] = "V"
-        achado["face"] = "dupla"
         dados["lista"] = nova_lista
         dados["historico"].append(achado)
         save_json(ARQ_DADOS, dados)
-        if now_brt() > expira:
-            achado["qr_valido"] = False
-            dados["lista"] = nova_lista
-            dados["historico"].append(achado)
-            save_json(ARQ_DADOS, dados)
-            raise HTTPException(status_code=410, detail="QR Code expirado")
-    except HTTPException:
-        raise
-    except Exception:
-        pass
-    achado["data_retirada"] = now_brt().strftime("%d/%m/%Y")
-    achado["hora_retirada"] = now_brt().strftime("%H:%M")
-    achado["qr_valido"] = False
-    achado["box"] = box_liberado
-    achado["porta_retirada"] = "V"
-    achado["face"] = "dupla"
-    dados["lista"]=nova_lista
-    dados["historico"].append(achado)
-    save_json(ARQ_DADOS, dados)
-    registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {box_liberado} liberado pela porta V Bloco:{achado.get('bloco')} Apto:{achado.get('apartamento')} Cod morador usado", condominio_id=condominio_tablet, request=request)
-    return {"ok": True, "box": box_liberado, "bloco": achado.get("bloco"), "apartamento": achado.get("apartamento")}
+        registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado.get('box')} Cond {condominio_tablet}", condominio_id=condominio_tablet, request=request)
+        return {"ok": True, "box": achado.get("box"), "condominio_id": condominio_tablet}
 
 # ETAPA 2.1 - DEPÓSITO INTERNO: morador / zelador / síndico devolve encomenda errada pelo lado de dentro
 # Sem sair do condomínio. O box continua o mesmo, só troca o destino.
