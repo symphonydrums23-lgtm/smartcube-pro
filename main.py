@@ -1603,9 +1603,21 @@ def esp32_confirmar(payload: dict, request: Request, _esp: bool = Depends(verifi
     nonce = str(payload.get("nonce") or "").strip()
     if not nonce:
         raise HTTPException(400, "Nonce obrigatório")
+    # ANTI-REPLAY: nonce já usado não abre de novo
+    agora_ts = time.time()
+    # limpa nonces expirados pra não crescer infinito
+    for n in list(_NONCES_EXPIRACAO.keys()):
+        if _NONCES_EXPIRACAO[n] < agora_ts:
+            _NONCES_USADOS.discard(n)
+            del _NONCES_EXPIRACAO[n]
+    if nonce in _NONCES_USADOS:
+        raise HTTPException(409, "Nonce já utilizado - replay bloqueado")
     for c in list(_FILA_ABERTURA):
         if c["nonce"] == nonce:
             _FILA_ABERTURA.remove(c)
+            # Marca nonce como usado por 10 minutos
+            _NONCES_USADOS.add(nonce)
+            _NONCES_EXPIRACAO[nonce] = agora_ts + 600
             # Agora sim marca como retirado
             dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
             nova_lista = []
