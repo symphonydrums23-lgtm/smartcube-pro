@@ -11,6 +11,21 @@ load_dotenv()
 from zoneinfo import ZoneInfo
 BRT = ZoneInfo("America/Sao_Paulo")
 
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# FILA ESP32 + ANTI-REPLAY
+_FILA_ABERTURA = []
+_NONCES_USADOS = set()
+_NONCES_EXPIRACAO = {}
+
 def now_brt():
     return datetime.now(BRT)
 
