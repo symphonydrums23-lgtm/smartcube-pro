@@ -106,6 +106,7 @@ if not os.path.exists(TEMPLATES_DIR) and os.path.exists(ALT_TEMPLATES):
 
 FILE_LOCK = threading.RLock()
 BOX_TABLET_RESERVADO = "03"
+BOXES_TABLET_RESERVADOS = {"03"}
 
 # PARTE 2 - 1. TRAVA DE PORTA + ANTI-REPLAY - DEPOIS DO app, SENÃO DÁ NameError
 _COMANDOS_ABERTURA = {}  # nonce -> timestamp
