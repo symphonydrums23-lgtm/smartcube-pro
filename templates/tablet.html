@@ -14,7 +14,7 @@ body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:col
 .btn small{font-size:11px;opacity:.7;font-weight:700;letter-spacing:.5px}
 .btn-entregar{background:#fff;color:#000;box-shadow:0 10px 30px rgba(255,255,255,.1)}
 .btn-deposito{background:#f59e0b;color:#fff;box-shadow:0 10px 30px rgba(245,158,11,.25)}
-.voltar{margin-top:12px;color:#444;font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;padding:10px 20px;border-radius:12px}
+.voltar{margin-top:12px;color:#444;font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;padding:10px 20px;border-radius:12px;background:transparent;border:none;font-family:'Inter',sans-serif}
 .voltar:active{background:#111;color:#FF6A00}
 .arm-label{color:#FF6A00;font-size:10px;font-weight:800;letter-spacing:1.2px;margin-top:-8px;opacity:.8}
 #setupOverlay{position:fixed;inset:0;background:rgba(0,0,0,.95);display:none;align-items:center;justify-content:center;z-index:9999;padding:20px}
@@ -29,18 +29,18 @@ body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:col
 <body>
 <img src="/logo.png" class="logo-img" alt="Smart Cube" id="logo">
 <div class="arm-label" id="armLabel"></div>
-<button class="btn btn-entregar" onclick="location.href='/entrega'">📦 ENTREGAR<small>ENTREGADOR / PORTARIA</small></button>
-<button class="btn btn-receber" onclick="location.href='/retirada'">🔑 RECEBER<small>MORADOR</small></button>
-<button id="btnDeposito" class="btn btn-deposito" style="display:none" onclick="location.href='/deposito-interno'">📦 DEVOLVER<small>ENCOMENDA ERRADA / POR DENTRO</small></button>
-<div class="voltar" id="btnVoltar" onclick="location.href='/'">VOLTAR AO INÍCIO</div>
+<button type="button" id="btnEntregar" class="btn btn-entregar">📦 ENTREGAR<small>ENTREGADOR / PORTARIA</small></button>
+<button type="button" id="btnReceber" class="btn btn-receber">🔑 RECEBER<small>MORADOR</small></button>
+<button type="button" id="btnDeposito" class="btn btn-deposito" style="display:none">📦 DEVOLVER<small>ENCOMENDA ERRADA / POR DENTRO</small></button>
+<button type="button" class="voltar" id="btnVoltar">VOLTAR AO INÍCIO</button>
 
 <!-- SETUP OCULTO -->
 <div id="setupOverlay">
   <div id="setupBox">
     <h2>🔒 INSTALAÇÃO DO ARMÁRIO</h2>
     <select id="selConds"><option>Carregando condomínios...</option></select>
-    <button onclick="travarArmario()">TRAVAR NESTE CONDOMÍNIO</button>
-    <button style="background:#222;color:#888;margin-top:8px" onclick="fecharSetup()">CANCELAR</button>
+    <button type="button" id="btnTravar">TRAVAR NESTE CONDOMÍNIO</button>
+    <button type="button" id="btnCancelarSetup" style="background:#222;color:#888;margin-top:8px">CANCELAR</button>
     <small>Esta ação só precisa ser feita 1 vez.<br>Depois o tablet fica travado no ARM.</small>
   </div>
 </div>
@@ -48,6 +48,13 @@ body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:col
 <script>
 // ETAPA 1.4 - localStorage guarda SÓ o token do tablet, nunca o condomínio
 function getTabletToken(){ return localStorage.getItem('tablet_token') || ''; }
+
+// MARQUINHOS - valida content-type antes de .json() - se voltar HTML, não quebra
+async function safeJson(r){
+  const ct = r.headers.get('content-type') || '';
+  if(!ct.includes('application/json')) return null;
+  try{ return await r.json(); }catch(e){ console.error('[SmartCube] JSON invalido', { status: r.status, url: r.url }); return null; }
+}
 
 async function carregarInfoTablet(){
   const token = getTabletToken();
@@ -61,18 +68,28 @@ async function carregarInfoTablet(){
   try{
     let r = await fetch('/api/tablet/info', { headers: { 'X-Tablet-Token': token } });
     if(!r.ok) throw new Error('token invalido');
-    let d = await r.json();
+    let d = await safeJson(r);
+    if(!d) throw new Error('resposta invalida');
     label.innerText = (d.codigo_armario || 'ARM') + ' • ' + (d.condominio_nome || '');
     btnVoltar.style.display = 'none';
     let btnDep = document.getElementById('btnDeposito');
     if(d.dupla_face || d.is_dupla_face || d.duplaFace){ btnDep.style.display = 'flex'; } else { btnDep.style.display = 'none'; }
     sessionStorage.setItem('condominio_nome_exibir', d.condominio_nome || '');
   }catch(e){
+    console.error('[SmartCube] carregarInfoTablet', e);
     label.innerText = 'TABLET NÃO CONFIGURADO - SEGURE A LOGO 4s';
     btnVoltar.style.display = 'block';
   }
 }
 carregarInfoTablet();
+
+// NAVEGACAO - addEventListener (Marquinhos) - mesmas rotas de antes
+document.getElementById('btnEntregar').addEventListener('click', ()=>{ location.href='/entrega'; });
+document.getElementById('btnReceber').addEventListener('click', ()=>{ location.href='/retirada'; });
+document.getElementById('btnDeposito').addEventListener('click', ()=>{ location.href='/deposito-interno'; });
+document.getElementById('btnVoltar').addEventListener('click', ()=>{ location.href='/'; });
+document.getElementById('btnTravar').addEventListener('click', travarArmario);
+document.getElementById('btnCancelarSetup').addEventListener('click', fecharSetup);
 
 // SETUP - SEGURA LOGO 4s
 let pressTimer;
@@ -87,7 +104,8 @@ async function abrirSetup(){
   try{
     let r = await fetch('/api/condominios');
     if(r.ok){
-      let conds = await r.json();
+      let conds = await safeJson(r);
+      if(!conds) return;
       let sel = document.getElementById('selConds');
       sel.innerHTML = '';
       conds.forEach(c=>{
@@ -98,7 +116,7 @@ async function abrirSetup(){
         sel.appendChild(opt);
       });
     }
-  }catch(e){}
+  }catch(e){ console.error('[SmartCube] abrirSetup', e); }
 }
 function fecharSetup(){ document.getElementById('setupOverlay').style.display='none'; }
 
@@ -114,11 +132,13 @@ async function travarArmario(){
     });
     if(r.status === 401){ alert('Faça login de admin antes de travar o tablet.'); location.href = '/login'; return; }
     if(!r.ok) throw new Error('falha registrar');
-    let d = await r.json();
+    let d = await safeJson(r);
+    if(!d || !d.tablet_token) throw new Error('sem token');
     localStorage.setItem('tablet_token', d.tablet_token);
     alert('Travado! Tablet reiniciando travado.');
     location.reload();
   }catch(e){
+    console.error('[SmartCube] travarArmario', e);
     alert('Erro ao travar tablet. Tente de novo.');
   }
 }
@@ -130,22 +150,24 @@ async function iaTabletBackground(){
     if(!token) return;
     let r = await fetch('/api/tablet/info', { headers: { 'X-Tablet-Token': token } });
     if(!r.ok) return;
-    let d = await r.json();
+    let d = await safeJson(r);
+    if(!d) return;
     let r2 = await fetch('/api/ia/lotacao-24h?condominio='+encodeURIComponent(d.condominio_id));
     if(!r2.ok) return;
-    let ia = await r2.json();
+    let ia = await safeJson(r2);
+    if(!ia) return;
     console.log('[IA Tablet] Cond:', d.condominio_id, 'Previsao:', ia.previsao_percent+'%');
-  }catch(e){}
+  }catch(e){ console.error('[SmartCube] iaTabletBackground', e); }
 }
 iaTabletBackground();
-setInterval(iaTabletBackground, 300000);
+const iaIntervalId = setInterval(iaTabletBackground, 300000);
 
 // ===== PARTE 2 - 1/2/3/4 - ABRIR PORTA + OFFLINE + LOG =====
 function gerarNonce(){
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10);
 }
 const FILA_KEY = 'fila_offline_smartcube';
-function getFilaOffline(){ try{ return JSON.parse(localStorage.getItem(FILA_KEY) || '[]'); }catch(e){ return []; } }
+function getFilaOffline(){ try{ return JSON.parse(localStorage.getItem(FILA_KEY) || '[]'); }catch(e){ console.error('[SmartCube] getFilaOffline', e); return []; } }
 function setFilaOffline(fila){ localStorage.setItem(FILA_KEY, JSON.stringify(fila)); }
 function enfileirarOffline(dados){
   const fila = getFilaOffline();
@@ -166,12 +188,12 @@ async function sincronizarFilaOffline(){
         body: JSON.stringify({ box: item.box, lado: item.lado, acao: item.acao, nonce: gerarNonce() })
       });
       if(!r.ok) restantes.push(item);
-    }catch(e){ restantes.push(item); }
+    }catch(e){ console.error('[SmartCube] sincronizarFilaOffline', e); restantes.push(item); }
   }
   setFilaOffline(restantes);
 }
 window.addEventListener('online', sincronizarFilaOffline);
-setInterval(sincronizarFilaOffline, 10000);
+const filaIntervalId = setInterval(sincronizarFilaOffline, 10000);
 sincronizarFilaOffline();
 
 async function abrirPorta(box, lado, acao){
@@ -186,32 +208,36 @@ async function abrirPorta(box, lado, acao){
       body: JSON.stringify(payload)
     });
     if(!r.ok){
-      const err = await r.json().catch(()=>({}));
+      const err = await safeJson(r) || {};
       if(r.status === 409){ alert('Comando já usado, tente de novo'); return; }
       throw new Error(err.detail || 'Erro ao abrir');
     }
-    const d = await r.json();
+    const d = await safeJson(r);
     console.log('Porta aberta:', d);
-    // Log ABERTA
     fetch('/api/tablet/porta-evento', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Tablet-Token': token },
       body: JSON.stringify({ box: box, lado: lado, evento: 'ABERTA', motivo: 'COMANDO' })
-    }).catch(()=>{});
-    // Log FECHADA após timeout (15s)
+    }).catch((e)=>{ console.error('[SmartCube] porta-evento ABERTA', e); });
     setTimeout(()=>{
       fetch('/api/tablet/porta-evento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Tablet-Token': token },
         body: JSON.stringify({ box: box, lado: lado, evento: 'FECHADA', motivo: 'TIMEOUT' })
-      }).catch(()=>{});
+      }).catch((e)=>{ console.error('[SmartCube] porta-evento FECHADA', e); });
     }, 15000);
     alert('Porta ' + box + ' lado ' + lado + ' ABERTA por 15s');
   }catch(e){
-    // OFFLINE - salva na fila
+    console.error('[SmartCube] abrirPorta', e);
     enfileirarOffline(payload);
   }
 }
+
+// MARQUINHOS - limpa intervals no unload - Kiosk 24h sem vazar memoria
+window.addEventListener('beforeunload', ()=>{
+  clearInterval(iaIntervalId);
+  clearInterval(filaIntervalId);
+});
 </script>
 </body>
 </html>
