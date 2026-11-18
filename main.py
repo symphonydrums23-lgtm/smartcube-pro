@@ -1702,7 +1702,7 @@ async def post_whitelabel(request: Request, token: str = Depends(requer_auth)):
 ARQ_MORS = "moradores.json"
 
 @app.post("/api/validar-apto")
-def validar_apto(payload: dict):
+def validar_apto(payload: dict, request: Request, tablet: dict = Depends(verificar_tablet_token)):
     import re
     condominio_id = str(payload.get("condominio_id") or payload.get("condominio") or "").strip()
     bloco = str(payload.get("bloco") or "").strip().upper()
