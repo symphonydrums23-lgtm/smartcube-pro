@@ -1772,17 +1772,16 @@ async def post_whitelabel(request: Request, token: str = Depends(requer_auth)):
 @app.post("/api/validar-apto")
 def validar_apto(payload: dict, request: Request, tablet: dict = Depends(verificar_tablet_token)):
     import re
-    condominio_id = str(payload.get("condominio_id") or payload.get("condominio") or "").strip()
+    condominio_id = str(request.state.tablet_condominio_id or "").strip()
     bloco = str(payload.get("bloco") or "").strip().upper()
     apto = str(payload.get("apto") or payload.get("apartamento") or "").strip().upper()
 
     if not re.match(r"^[0-9]+[A-Za-z]?$|^[A-Za-z0-9\-/]+$", apto):
         raise HTTPException(400, "Formato apto invalido. Use 12, 12A, 12B")
     if not condominio_id or condominio_id == "1":
-        raise HTTPException(400, "Informe condominio_id real")
+        raise HTTPException(400, "Token do tablet sem condominio_id")
 
     mors = load_json(ARQ_MORS, [])
-    # Se moradores.json vier como dict, extrai a lista
     if isinstance(mors, dict):
         mors = mors.get("moradores", []) or mors.get("data", []) or []
 
