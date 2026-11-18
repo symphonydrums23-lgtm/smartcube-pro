@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SmartCube</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#0a0a0a;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:Inter,Arial}
@@ -13,25 +14,52 @@ img{width:180px;object-fit:contain}
 @keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
 </style>
 </head>
-<body onclick="location.href='/tablet'">
-<img id="logoImg" src="logo.png" onerror="this.src='logo.dashboard.png'">
+<body>
+<img id="logoImg" src="logo.png" onerror="this.src='logo.dashboard.png'" alt="Logo Smart Cube">
 <div class="touch">Toque na tela para iniciar</div>
 <div class="nome" id="condNome">CARREGANDO CONDOMÍNIO...</div>
 <script>
+function getTabletToken(){ return localStorage.getItem('tablet_token') || ''; }
+
+// MARQUINHOS - valida content-type antes de .json()
+async function safeJson(r){
+  const ct = r.headers.get('content-type') || '';
+  if(!ct.includes('application/json')) return null;
+  try{ return await r.json(); }catch(e){ console.error('[SmartCube] JSON invalido', { status: r.status, url: r.url }); return null; }
+}
+
 async function carregar(){
-  const el=document.getElementById('condNome');
-  const logo=document.getElementById('logoImg');
+  const el = document.getElementById('condNome');
+  const logo = document.getElementById('logoImg');
   try{
-    const wl=JSON.parse(localStorage.getItem('sc_whitelabel')||'{}');
-    if(wl.nome){ el.innerText=wl.nome.toUpperCase(); if(wl.logo1) logo.src=wl.logo1; return; }
-  }catch(e){}
-  const id=localStorage.getItem('condominio_selecionado')||'1';
-  try{
-    const r=await fetch('/api/condominios/'+id); const c=await r.json();
-    if(c.nome) el.innerText=c.nome.toUpperCase();
-  }catch(e){ el.innerText='SMART CUBE'; }
+    const token = getTabletToken();
+    if(!token){
+      // Sem token = tablet não travado, mostra genérico, não busca por id
+      el.innerText = 'SMART CUBE';
+      return;
+    }
+    // CORRETO: busca pelo token do tablet, não por id do localStorage
+    const r = await fetch('/api/tablet/info', { headers: { 'X-Tablet-Token': token } });
+    if(!r.ok) throw new Error('token invalido');
+    const d = await safeJson(r);
+    if(!d) throw new Error('resposta invalida');
+    // MARQUINHOS - fallback quando c.nome não existe
+    el.innerText = d.condominio_nome ? d.condominio_nome.toUpperCase() : 'SMART CUBE';
+  }catch(e){
+    console.error('[SmartCube] carregar inicio', e);
+    el.innerText = 'SMART CUBE';
+  }
 }
 carregar();
+
+// MARQUINHOS - sem onclick no body, acessível por teclado
+document.body.addEventListener('click', ()=>{ location.href = '/tablet'; });
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter' || e.key === ' '){
+    e.preventDefault();
+    location.href = '/tablet';
+  }
+});
 </script>
 </body>
 </html>
