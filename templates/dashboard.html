@@ -401,8 +401,20 @@ function renderHist(){
 }
 async function carregarAuditoria(){try{let r=await fetchAuth(API_BASE+'/api/auditoria');let logs=await r.json();let div=document.getElementById('auditLista');if(div)div.innerHTML=logs.slice(0,50).map(l=>`<div style="font-size:10px;padding:6px;border-bottom:1px solid #eee"><b>${l.data}</b> - ${l.acao} - ${l.usuario} - ${l.ip} - ${l.detalhes}</div>`).join('');}catch(e){}}
 function abrirCompartimentos(){let modal=document.getElementById('modal');let body=document.getElementById('modalBody');if(!modal||!body)return;document.getElementById('modalTitulo').innerText='Compartimentos - Abertura Remota';document.getElementById('modalSub').innerText='Manutenção / Emergência - Logado na auditoria';let total=DADOS?.total_boxes||16;let lista=DADOS?.lista||[];let ocupadosSet=new Set(lista.map(x=>String(x.box).padStart(2,'0')));body.innerHTML=`<div class="grid-box">${Array.from({length:total},(_,i)=>{let num=i+1;let boxStr=String(num).padStart(2,'0');let ocup=ocupadosSet.has(boxStr)||ocupadosSet.has(String(num));let isTablet=boxStr=='03';return `<div class="box-item ${ocup?'ocupado':'livre'}" style="${isTablet?'border-color:#DC2626;background:#FEF2F2':''}"><b>Box ${boxStr} ${isTablet?'🔒 TABLET':''}</b><div style="font-size:10px;margin-top:4px">${isTablet?'Reservado Tablet':(ocup?'Ocupado':'Livre')}</div><button onclick="abrirRemoto('${boxStr}')" ${isTablet?'disabled':''} style="margin-top:8px;background:${isTablet?'#9CA3AF':(ocup?'#DC2626':'#111827')};color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:10px;font-weight:700;cursor:${isTablet?'not-allowed':'pointer'};width:100%">${isTablet?'🔒 BLOQUEADO':'🔓 ABRIR REMOTO'}</button></div>`}).join('')}</div>`;modal.style.display='flex';}
-async function abrirRemoto(boxId){if(boxId=='03'){alert('Box 03 é do tablet, não pode abrir!');return;}if(!confirm(`⚠️ Abrir Box ${boxId} REMOTAMENTE?\n\nIsso será logado como ABERTURA_REMOTA_ADMIN.`))return;try{let r=await fetchAuth(API_BASE+'/api/admin/abrir-box/'+boxId,{method:'POST'});let data=await r.json();if(data.ok){alert(`✅ ${data.msg}`);fecharModal();carregarDados();}else{alert(`❌ ${data.detail||'Falha'}`);}}catch(e){alert('Erro: '+e.message);}}
-function abrirAguardando(){TIPO_ATUAL='aguardando';abrirModalLista(DADOS?.lista||[],'Aguardando Retirada');}
+async function abrirRemoto(boxId){
+  if(boxId=='03'){alert('Box 03 é do tablet, não pode abrir!');return;}
+  if(!confirm(`⚠️ Abrir Box ${boxId} REMOTAMENTE?\n\nIsso será logado como ABERTURA_REMOTA_ADMIN.`))return;
+  try{
+    let r=await fetchAuth(API_BASE+'/api/admin/abrir-box/'+boxId,{
+      method:'POST',
+      headers: authHeadersJson(),
+      body: JSON.stringify({condominio_id: COND_ID})
+    });
+    let data=await r.json();
+    if(data.ok){alert(`✅ ${data.msg}`);fecharModal();carregarDados();}
+    else{alert(`❌ ${data.detail||'Falha'}`);}
+  }catch(e){alert('Erro: '+e.message);}
+}
 function abrirVencidas(){TIPO_ATUAL='vencidas';abrirModalLista(DADOS?.vencidas_lista||[],'Prazo Vencido');}
 function abrirRetiradas(){TIPO_ATUAL='retiradas';abrirModalLista(DADOS?.historico||[],'Retiradas');}
 function abrirModalLista(lista,titulo){let modal=document.getElementById('modal');let body=document.getElementById('modalBody');DADOS_FILTRADOS=lista;document.getElementById('modalTitulo').innerText=titulo;document.getElementById('modalSub').innerText=`${lista.length} registros`;body.innerHTML=`<table class="tabela"><thead><tr><th>Protocolo</th><th>Bloco/Apto</th><th>Box</th><th>Data</th><th>Código</th></tr></thead><tbody>${lista.map(i=>`<tr><td>${i.protocolo||i.codigo}</td><td>${i.bloco||''} ${i.apartamento||i.apto||''}</td><td>${i.box}</td><td>${i.data||''} ${i.hora||''}</td><td>${i.codigo_retirada||i.codigo||''}</td></tr>`).join('')}</tbody></table>`;modal.style.display='flex';}
