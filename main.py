@@ -1581,12 +1581,6 @@ def ia_lotacao_24h(condominio: str = "1", token: str = Depends(requer_auth_opcio
     _set_cache_ia("lotacao_"+condominio, resultado)
     return resultado
 
-# FILA ESP32 - dashboard manda, ESP32 lê no poll
-_FILA_ABERTURA = []  # [{box, condominio_id, nonce, criado_em}]
-# ANTI-REPLAY: nonce já usado não abre de novo, mesmo se reenviado
-_NONCES_USADOS = set()
-_NONCES_EXPIRACAO = {}  # nonce -> timestamp limite
-
 @app.post("/api/admin/abrir-box/{box_id}")
 def abrir_box_remoto(box_id: str, payload: dict, request: Request, token: str = Depends(requer_auth)):
     box_id = str(box_id).zfill(2)
