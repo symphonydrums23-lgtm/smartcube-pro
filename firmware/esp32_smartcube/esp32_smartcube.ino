@@ -5,8 +5,8 @@
 // --- CONFIGURA AQUI ---
 const char* WIFI_SSID = "NOME_DO_WIFI_DO_CONDOMINIO";
 const char* WIFI_PASS = "SENHA_DO_WIFI";
-const char* API_BASE = "https://SEU-BACKEND.onrender.com/api";
-const char* TABLET_TOKEN = "COLA_AQUI_O_X-TABLET-TOKEN";
+const char* API_BASE = "https://smartcube-pro-1.onrender.com/api";
+const char* ESP32_TOKEN = "COLE_AQUI_O_TOKEN_DO_RENDER";
 const char* CONDOMINIO_ID = "1";
 
 #define PINO_TRAVA 2
@@ -35,7 +35,7 @@ void abrirTrava(int box, char lado) {
   travaAberta = true;
   boxAberto = box;
   ladoAberto = lado;
-  abertoAte = millis() + 15000; // timeout 15s - já tinha, mantido
+  abertoAte = millis() + 15000;
 }
 
 void fecharTrava(int box, char lado) {
@@ -46,9 +46,9 @@ void fecharTrava(int box, char lado) {
 
 void confirmarAbertura(String nonce, String comando_id) {
   HTTPClient http;
-  http.begin(String(API_BASE) + "/tablet/porta-evento");
+  http.begin(String(API_BASE) + "/esp32/porta-evento");
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Tablet-Token", TABLET_TOKEN);
+  http.addHeader("X-Device-Token", ESP32_TOKEN);
   String body = "{\"evento\":\"aberta\",\"nonce\":\"" + nonce + "\",\"comando_id\":\"" + comando_id + "\",\"condominio_id\":\"" + String(CONDOMINIO_ID) + "\"}";
   int code = http.POST(body);
   Serial.println("Confirmar: " + String(code));
@@ -58,10 +58,14 @@ void confirmarAbertura(String nonce, String comando_id) {
 void pollPorta() {
   if (WiFi.status() != WL_CONNECTED) return;
   HTTPClient http;
-  http.begin(String(API_BASE) + "/tablet/poll");
-  http.addHeader("X-Tablet-Token", TABLET_TOKEN);
+  http.begin(String(API_BASE) + "/esp32/poll?condominio_id=" + String(CONDOMINIO_ID));
+  http.addHeader("X-Device-Token", ESP32_TOKEN);
   int code = http.GET();
-  if (code != 200) { http.end(); return; }
+  if (code != 200) {
+    Serial.println("Poll falhou: " + String(code));
+    http.end();
+    return;
+  }
 
   String payload = http.getString();
   http.end();
@@ -82,12 +86,10 @@ void pollPorta() {
 }
 
 void loop() {
-  // Timeout 15s - segurança
   if (travaAberta && millis() > abertoAte) {
     fecharTrava(boxAberto, ladoAberto);
   }
 
-  // Mantido: abre por Serial pra teste na bancada
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
@@ -98,7 +100,6 @@ void loop() {
     }
   }
 
-  // NOVO: poll a cada 2s
   static unsigned long ultimoPoll = 0;
   if (millis() - ultimoPoll > 2000) {
     ultimoPoll = millis();
