@@ -14,31 +14,41 @@ body{display:flex;min-height:100vh}
 .btn{width:100%;padding:14px;background:#FF6A00;color:#fff;border:0;border-radius:10px;margin-top:18px;font-weight:800;cursor:pointer;font-size:14px}
 .btn:disabled{opacity:.6;cursor:not-allowed}
 .err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;padding:10px;border-radius:8px;font-size:12px;margin-top:12px;display:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 </style>
 </head>
 <body>
 <div class="left">
-  <img src="logo.dashboard.png" onerror="this.src='logo.png'">
+  <img src="logo.dashboard.png" onerror="this.src='logo.png'" alt="Logo Smart Cube">
   <div style="margin-top:16px;font-size:13px;color:#9ca3af;text-align:center;line-height:1.6">Sistema inteligente de armários para<br>condomínios.<br>Faça login para acessar o painel.</div>
 </div>
-<div class="right">
+<main class="right">
   <div class="box">
     <b style="font-size:22px">Bem-vindo de volta</b>
     <div style="font-size:12px;color:#6b7280;margin-top:4px">Entre com suas credenciais</div>
-    <input id="user" class="input" placeholder="Usuário" value="admin">
-    <input id="pass" class="input" placeholder="Senha" type="password">
-    <button id="btnLogin" class="btn" onclick="doLogin()">ENTRAR NO PAINEL →</button>
-    <div id="err" class="err"></div>
+    <label class="sr-only" for="user">Usuário</label>
+    <input id="user" class="input" placeholder="Usuário" autocomplete="username" required aria-required="true">
+    <label class="sr-only" for="pass">Senha</label>
+    <input id="pass" class="input" placeholder="Senha" type="password" autocomplete="current-password" required aria-required="true">
+    <button type="button" id="btnLogin" class="btn">ENTRAR NO PAINEL →</button>
+    <div id="err" class="err" role="alert" aria-live="polite"></div>
     <div style="font-size:10px;color:#888;margin-top:12px;text-align:center">© 2026 Smart Cube • v6.1 Seguro</div>
   </div>
-</div>
+</main>
 <script>
-const API_BASE = '';
+const API_BASE = window.location.origin;
 
 function showErr(msg){
   const el = document.getElementById('err');
   el.style.display='block';
   el.innerText = msg;
+}
+
+// MARQUINHOS - valida content-type antes de .json()
+async function safeJson(r){
+  const ct = r.headers.get('content-type') || '';
+  if(!ct.includes('application/json')) return null;
+  try{ return await r.json(); }catch(e){ console.error('[SmartCube] JSON invalido', { status: r.status, url: r.url }); return null; }
 }
 
 async function doLogin(){
@@ -52,29 +62,33 @@ async function doLogin(){
   btn.innerText = 'ENTRANDO...';
   document.getElementById('err').style.display='none';
 
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 10000);
   try{
     const r = await fetch(API_BASE+'/api/auth/login',{
       method:'POST',
+      signal: controller.signal,
       headers:{'Content-Type':'application/json'},
       credentials: 'include',
       body: JSON.stringify({usuario: u, senha: p})
     });
-    
-    const j = await r.json();
+    clearTimeout(timer);
+    const j = await safeJson(r);
     
     if(!r.ok){
-      showErr(j.detail || 'Usuário ou senha inválido');
+      showErr((j && j.detail) || 'Usuário ou senha inválido');
       btn.disabled = false;
       btn.innerText = 'ENTRAR NO PAINEL →';
       return;
     }
     
-    if(j.ok){
+    if(j && j.ok){
       // FIX v5.9: não salva token no localStorage e não joga token na URL
       // O backend já seta o cookie httponly, é só ir pro dashboard limpo
-      try { localStorage.removeItem('sc_token'); } catch(e){}
-      try { localStorage.removeItem('sc_user'); } catch(e){}
-      try { document.cookie = "sc_token=; path=/; max-age=0"; } catch(e){}
+      try { localStorage.removeItem('sc_token'); } catch(e){ console.error('[SmartCube] limpar sc_token', e); }
+      try { localStorage.removeItem('sc_user'); } catch(e){ console.error('[SmartCube] limpar sc_user', e); }
+      // SEM sessionStorage sc_token - Marquinhos sugeriu, mas isso reintroduz o vazamento
+      // SEM ?token= na URL
       window.location.replace('/dashboard');
     }else{
       showErr('Erro no login');
@@ -82,12 +96,23 @@ async function doLogin(){
       btn.innerText = 'ENTRAR NO PAINEL →';
     }
   }catch(e){
-    showErr('Erro de conexão com servidor - '+e.message);
+    clearTimeout(timer);
+    if(e && e.name === 'AbortError'){
+      console.error('[SmartCube] doLogin timeout', e);
+      showErr('Tempo esgotado. Tente de novo.');
+    } else {
+      console.error('[SmartCube] doLogin', e);
+      showErr('Erro de conexão com servidor - '+e.message);
+    }
     btn.disabled = false;
     btn.innerText = 'ENTRAR NO PAINEL →';
   }
 }
 
+document.getElementById('btnLogin').addEventListener('click', doLogin);
+document.getElementById('user').addEventListener('keydown', e=>{
+  if(e.key==='Enter') doLogin();
+});
 document.getElementById('pass').addEventListener('keydown', e=>{
   if(e.key==='Enter') doLogin();
 });
@@ -99,7 +124,7 @@ document.getElementById('pass').addEventListener('keydown', e=>{
     if(r.ok){
       window.location.replace('/dashboard');
     }
-  }catch(e){}
+  }catch(e){ console.error('[SmartCube] auto-login verificar', e); }
 })();
 </script>
 </body>
