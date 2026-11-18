@@ -11,15 +11,9 @@ load_dotenv()
 from zoneinfo import ZoneInfo
 BRT = ZoneInfo("America/Sao_Paulo")
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# SEM app = FastAPI() aqui
+# SEM CORS "*" aqui
+# O app único fica lá embaixo, depois do SECRET_JWT
 
 # FILA ESP32 + ANTI-REPLAY
 _FILA_ABERTURA = []
