@@ -800,31 +800,38 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
             raise HTTPException(status_code=400, detail="Código obrigatório")
         if codigo.startswith("SC-") and not codigo.startswith("SC-RET-"):
             raise HTTPException(status_code=403, detail="Protocolo de entregador não abre box. Use código do morador.")
-        # P0-1: RETIRADA TRAVADA NO CONDOMINIO DO TOKEN
         condominio_tablet = str(getattr(request.state, "tablet_condominio_id", "") or tablet.get("condominio_id") or "").strip()
         achado = None
-        nova_lista = []
         achado_outro_cond = False
         for item in dados.get("lista",[]):
             if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
                 if str(item.get("condominio_id","")) != condominio_tablet:
                     achado_outro_cond = True
-                    nova_lista.append(item)
                 else:
                     achado = item
-            else:
-                nova_lista.append(item)
-        if achado_outro_cond:
+        if achado_outro_cond and not achado:
             raise HTTPException(status_code=403, detail="Código pertence a outro condomínio")
         if not achado:
             raise HTTPException(status_code=404, detail="Código não encontrado")
-        achado["qr_valido"] = False
-        dados["lista"] = nova_lista
-        dados["historico"].append(achado)
-        save_json(ARQ_DADOS, dados)
-        registrar_auditoria("RETIRADA_TABLET", detalhes=f"Box {achado.get('box')} Cond {condominio_tablet}", condominio_id=condominio_tablet, request=request)
-        return {"ok": True, "box": achado.get("box"), "condominio_id": condominio_tablet}
+        if achado.get("status") == "AGUARDANDO_CONFIRMACAO_PORTA":
+            raise HTTPException(status_code=409, detail="Retirada já em andamento, aguarde confirmação da porta")
 
+        # CORRIGIDO: não tira da lista ainda. Marca como pendente
+        # e joga na fila igual o admin faz. Só o /api/esp32/confirmar
+        # tira da lista e joga pro histórico.
+        achado["status"] = "AGUARDANDO_CONFIRMACAO_PORTA"
+        nonce = f"RET-{condominio_tablet}-{achado.get('box')}-{int(time.time())}-{secrets.token_hex(3).upper()}"
+        achado["nonce_retirada"] = nonce
+        _FILA_ABERTURA.append({
+            "box": str(achado.get("box")).zfill(2),
+            "condominio_id": condominio_tablet,
+            "nonce": nonce,
+            "origem": "RETIRADA_TABLET",
+            "criado_em": now_brt().isoformat(),
+        })
+        save_json(ARQ_DADOS, dados)
+        registrar_auditoria("RETIRADA_TABLET_SOLICITADA", detalhes=f"Box {achado.get('box')} Cond {condominio_tablet} Nonce {nonce} Aguardando porta", condominio_id=condominio_tablet, request=request)
+        return {"ok": True, "box": achado.get("box"), "condominio_id": condominio_tablet, "nonce": nonce, "aguardando_confirmacao": True}
 # ETAPA 2.1 - DEPÓSITO INTERNO: morador / zelador / síndico devolve encomenda errada pelo lado de dentro
 # Sem sair do condomínio. O box continua o mesmo, só troca o destino.
 
