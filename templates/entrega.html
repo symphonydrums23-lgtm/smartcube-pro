@@ -43,7 +43,6 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 .row span:last-child{font-weight:800;color:#111}
 .hint{margin-top:8px;text-align:center;font-size:10px;color:#a0a0a8;font-weight:600}
 .arm-info{text-align:center;font-size:10px;font-weight:800;color:#FF6A00;letter-spacing:.8px;margin-bottom:8px}
-/* NOVO - GRID BLOCOS / APTOS IGUAL PRINT */
 .pill{width:100%;padding:12px;background:#FF6A00;color:#fff;border-radius:10px;text-align:center;font-size:12px;font-weight:900;letter-spacing:.8px;margin:10px 0}
 .grid-blocos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
 .grid-aptos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
@@ -62,8 +61,8 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="sub">Informe o destino para liberar um box</div>
 <div class="arm-info" id="armInfo"></div>
 <div class="pill">DIGITE O BLOCO</div>
-<div class="grid-blocos" id="gridBlocos"></div>
-<button class="btn-sec" onclick="location.href='/tablet'">VOLTAR AO INÍCIO</button>
+<div class="grid-blocos" id="gridBlocos" role="group" aria-label="Escolha o bloco"></div>
+<button type="button" class="btn-sec" id="btnVoltarInicio1">VOLTAR AO INÍCIO</button>
 <div class="hint">🔒 LGPD • Dados criptografados</div>
 </div>
 
@@ -75,9 +74,9 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="sub">Informe o destino para liberar um box</div>
 <div class="arm-info" id="armInfo2"></div>
 <div class="pill">DIGITE O APARTAMENTO</div>
-<div class="grid-aptos" id="gridAptos"></div>
-<button class="btn-sec" id="btnVoltarBloco" onclick="voltarBloco()">VOLTAR</button>
-<button class="btn-sec" onclick="location.href='/tablet'">VOLTAR AO INÍCIO</button>
+<div class="grid-aptos" id="gridAptos" role="group" aria-label="Escolha o apartamento"></div>
+<button type="button" class="btn-sec" id="btnVoltarBloco">VOLTAR</button>
+<button type="button" class="btn-sec" id="btnVoltarInicio2">VOLTAR AO INÍCIO</button>
 </div>
 
 <!-- S2 - TAMANHO -->
@@ -87,13 +86,13 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="h1">Qual o tamanho?</div>
 <div class="sub" id="destTxt">-</div>
 <div class="sizes">
-<div class="size" onclick="sel('P',this)"><b>P</b><small>PEQUENO</small></div>
-<div class="size" onclick="sel('M',this)"><b>M</b><small>MÉDIO</small></div>
-<div class="size" onclick="sel('G',this)"><b>G</b><small>GRANDE</small></div>
+<button type="button" class="size" data-tam="P" aria-label="Tamanho pequeno"><b>P</b><small>PEQUENO</small></button>
+<button type="button" class="size" data-tam="M" aria-label="Tamanho médio"><b>M</b><small>MÉDIO</small></button>
+<button type="button" class="size" data-tam="G" aria-label="Tamanho grande"><b>G</b><small>GRANDE</small></button>
 </div>
-<div class="status-box err" id="semEspacoBox" style="display:none"><b id="semEspacoTxt">SEM ESPAÇO</b></div>
-<button class="btn-primary" id="btnConf" disabled onclick="confirmar()">ABRIR BOX →</button>
-<button class="btn-sec" onclick="voltarDest()">VOLTAR</button>
+<div class="status-box err" id="semEspacoBox" style="display:none" role="alert" aria-live="assertive"><b id="semEspacoTxt">SEM ESPAÇO</b></div>
+<button type="button" class="btn-primary" id="btnConf" disabled>ABRIR BOX →</button>
+<button type="button" class="btn-sec" id="btnVoltarDest">VOLTAR</button>
 </div>
 
 <!-- S3 - COMPROVANTE -->
@@ -102,7 +101,7 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="icon-circle">✅</div>
 <div class="h1">Entrega registrada!</div>
 <div class="sub">Box liberado com sucesso</div>
-<div class="status-box"><b id="boxStatus">🔓 BOX 07 ABERTO - COLOQUE A ENCOMENDA<br>E FECHE A PORTA</b></div>
+<div class="status-box"><b id="boxStatus">🔓 BOX -- ABERTO - COLOQUE A ENCOMENDA<br>E FECHE A PORTA</b></div>
 <div class="receipt">
 <div class="receipt-title">COMPROVANTE DE ENTREGA</div>
 <div class="row"><span>Protocolo</span><span id="protocolo">SC-000000</span></div>
@@ -112,10 +111,10 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <div class="row"><span>Bloco</span><span id="bTxt">B</span></div>
 <div class="row"><span>Apartamento</span><span id="aTxt">303</span></div>
 <div class="row"><span>Tamanho</span><span id="tTxt">P</span></div>
-<div class="row"><span>Box</span><span style="color:#FF6A00" id="boxRecibo">07</span></div>
+<div class="row"><span>Box</span><span style="color:#FF6A00" id="boxRecibo">--</span></div>
 <div class="row"><span>Status</span><span style="color:#2e7d32">● ENTREGUE NO BOX</span></div>
 </div>
-<button class="btn-primary" onclick="location.href='/tablet'">CONCLUIR ✓</button>
+<button type="button" class="btn-primary" id="btnConcluir">CONCLUIR ✓</button>
 </div>
 
 </div>
@@ -128,39 +127,37 @@ let tam = '';
 let listaBlocos = [];
 let listaAptos = [];
 
+// MARQUINHOS - valida content-type antes de .json()
+async function safeJson(r){
+  const ct = r.headers.get('content-type') || '';
+  if(!ct.includes('application/json')) return null;
+  try{ return await r.json(); }catch(e){ console.error('[SmartCube] JSON invalido', { status: r.status, url: r.url }); return null; }
+}
+
 async function carregarInfo(){
   const token = getTabletToken();
   if(!token){ alert('Tablet não configurado! Segure o logo no menu e trave o tablet.'); location.href='/tablet'; return; }
   try{
     let r = await fetch('/api/tablet/info', { headers: { 'X-Tablet-Token': token } });
     if(!r.ok) throw new Error('token invalido');
-    tabletInfo = await r.json();
+    tabletInfo = await safeJson(r);
+    if(!tabletInfo) throw new Error('resposta invalida');
     let txt = (tabletInfo.codigo_armario || 'ARM') + ' • ' + (tabletInfo.condominio_nome || '');
     document.getElementById('armInfo').innerText = txt;
     document.getElementById('armInfo2').innerText = txt;
     document.getElementById('condominioNome').innerText = tabletInfo.condominio_nome || 'Residencial';
     await carregarDestino();
   }catch(e){
+    console.error('[SmartCube] carregarInfo entrega', e);
     alert('Tablet não travado ou token inválido. Configure de novo no menu.');
     location.href='/tablet';
   }
 }
 
 async function carregarDestino(){
-  // Tenta buscar blocos/aptos do condomínio, se não tiver usa padrão
+  // Só usa o que já veio no /api/tablet/info - sem fetch extra sem token
   let blocos = tabletInfo.blocos || tabletInfo.lista_blocos || tabletInfo.blocks || null;
   let aptos = tabletInfo.apartamentos || tabletInfo.lista_aptos || tabletInfo.apartments || null;
-  try{
-    if(!blocos || !aptos){
-      let r = await fetch('/api/condominios/' + tabletInfo.condominio_id);
-      if(r.ok){
-        let c = await r.json();
-        if(!blocos) blocos = c.blocos || c.lista_blocos || c.blocks;
-        if(!aptos) aptos = c.apartamentos || c.lista_aptos || c.apartments;
-      }
-    }
-  }catch(e){}
-  // Normaliza
   if(Array.isArray(blocos)) listaBlocos = blocos.map(b=> typeof b==='string'?b:(b.nome||b.id||b.bloco)).filter(Boolean);
   else if(typeof blocos==='string' && blocos) listaBlocos = blocos.split(',').map(s=>s.trim()).filter(Boolean);
   else listaBlocos = [];
@@ -169,19 +166,16 @@ async function carregarDestino(){
   else if(typeof aptos==='string' && aptos) listaAptos = aptos.split(',').map(s=>s.trim()).filter(Boolean);
   else listaAptos = [];
 
-  // Se API não devolveu, usa padrão do print: A-H e 101-404
-  if(!listaBlocos.length && !tabletInfo.tem_bloco===false){
-    // Se o condomínio tem flag sem_bloco, não inventa blocos
-    if(tabletInfo.sem_bloco || tabletInfo.tem_bloco===false || tabletInfo.possui_bloco===false){
-      listaBlocos = [];
-    } else {
-      // Padrão: tenta A-H - se seu condomínio é sem bloco, zera no admin depois
-      listaBlocos = ['A','B','C','D','E','F','G','H'];
-    }
+  const semBloco = tabletInfo.sem_bloco || tabletInfo.tem_bloco===false || tabletInfo.possui_bloco===false;
+  if(!listaBlocos.length && !semBloco){
+    listaBlocos = ['A','B','C','D','E','F','G','H'];
   }
   if(!listaAptos.length) listaAptos = ['101','102','103','104','201','202','203','204','301','302','303','304','401','402','403','404'];
 
-  // REGRA: sem bloco -> vai direto pra aptos
+  // MARQUINHOS - valida o que veio da lista antes de usar
+  listaBlocos = listaBlocos.filter(b=>/^[A-Z0-9]{1,4}$/.test(String(b).toUpperCase()));
+  listaAptos = listaAptos.filter(a=>/^\d{1,5}$/.test(String(a)));
+
   if(listaBlocos.length===0){
     mostrarAptos();
   } else {
@@ -192,20 +186,42 @@ async function carregarDestino(){
 function mostrarBlocos(){
   document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
   document.getElementById('s1').classList.add('active');
-  document.getElementById('gridBlocos').innerHTML = listaBlocos.map(b=>`<button class="btn-grid" onclick="selecionarBloco('${b}')">BLOCO ${b}</button>`).join('');
+  const grid = document.getElementById('gridBlocos');
+  grid.innerHTML = '';
+  listaBlocos.forEach(b=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-grid';
+    btn.textContent = 'BLOCO ' + b;
+    btn.setAttribute('aria-label', 'Bloco ' + b);
+    btn.addEventListener('click', ()=>selecionarBloco(b));
+    grid.appendChild(btn);
+  });
 }
 function selecionarBloco(b){
-  blocoSel = b;
+  if(!/^[A-Z0-9]{1,4}$/.test(String(b).toUpperCase())){ console.error('[SmartCube] bloco invalido', b); return; }
+  blocoSel = String(b).toUpperCase();
   mostrarAptos();
 }
 function mostrarAptos(){
   document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
   document.getElementById('s1b').classList.add('active');
   document.getElementById('btnVoltarBloco').style.display = listaBlocos.length===0 ? 'none' : 'block';
-  document.getElementById('gridAptos').innerHTML = listaAptos.map(a=>`<button class="btn-grid" onclick="selecionarApto('${a}')">${a}</button>`).join('');
+  const grid = document.getElementById('gridAptos');
+  grid.innerHTML = '';
+  listaAptos.forEach(a=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-grid';
+    btn.textContent = a;
+    btn.setAttribute('aria-label', 'Apartamento ' + a);
+    btn.addEventListener('click', ()=>selecionarApto(a));
+    grid.appendChild(btn);
+  });
 }
 function selecionarApto(a){
-  aptoSel = a;
+  if(!/^\d{1,5}$/.test(String(a))){ console.error('[SmartCube] apto invalido', a); return; }
+  aptoSel = String(a);
   irTamanho();
 }
 function voltarBloco(){ mostrarBlocos(); }
@@ -214,6 +230,9 @@ function irTamanho(){
   if(!tabletInfo || !tabletInfo.condominio_id){ alert('Tablet não travado!'); location.href='/tablet'; return; }
   if(listaBlocos.length>0 && !blocoSel){ alert('Escolha o bloco'); mostrarBlocos(); return; }
   if(!aptoSel){ alert('Escolha o apartamento'); mostrarAptos(); return; }
+  // MARQUINHOS - validação robusta antes de continuar
+  if(listaBlocos.length>0 && !/^[A-Z0-9]{1,4}$/.test(blocoSel)){ alert('Bloco inválido'); mostrarBlocos(); return; }
+  if(!/^\d{1,5}$/.test(aptoSel)){ alert('Apartamento inválido'); mostrarAptos(); return; }
   let bTxt = listaBlocos.length>0 ? `Bloco ${blocoSel} • ` : '';
   document.getElementById('destTxt').innerText = bTxt + `Apto ${aptoSel}`;
   document.getElementById('bTxt').innerText = blocoSel || '-';
@@ -222,11 +241,11 @@ function irTamanho(){
   document.getElementById('s2').classList.add('active');
 }
 function voltarDest(){
-  // Volta pra aptos, não pra blocos
   document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
   document.getElementById('s1b').classList.add('active');
 }
 function sel(t,el){
+  if(!['P','M','G'].includes(t)) return;
   tam=t;
   document.querySelectorAll('.size').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
@@ -236,23 +255,26 @@ function sel(t,el){
 }
 async function confirmar(){
   let btn = document.getElementById('btnConf');
+  if(!tam || !aptoSel){ alert('Escolha o tamanho e o apartamento'); return; }
+  if(listaBlocos.length>0 && !/^[A-Z0-9]{1,4}$/.test(blocoSel)){ alert('Bloco inválido'); return; }
+  if(!/^\d{1,5}$/.test(aptoSel)){ alert('Apartamento inválido'); return; }
   btn.disabled = true; btn.innerText = 'ABRINDO...';
   let bloco = blocoSel; let apto = aptoSel;
   let n=new Date(); let dataStr=n.toLocaleDateString('pt-BR'); let horaStr=n.toLocaleTimeString('pt-BR').slice(0,5);
-  let p='SC-'+Math.floor(100000+Math.random()*900000);
-  document.getElementById('protocolo').innerText=p;
-  document.getElementById('dataTxt').innerText=dataStr;
-  document.getElementById('horaTxt').innerText=horaStr;
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 10000);
   try{
     let token = getTabletToken();
     let resp = await fetch('/api/tablet/entrega',{
       method:'POST',
+      signal: controller.signal,
       headers:{'Content-Type':'application/json', 'X-Tablet-Token': token},
       body: JSON.stringify({ bloco: bloco, apartamento: apto, tamanho: tam })
     });
-    let d = await resp.json();
+    clearTimeout(timer);
+    let d = await safeJson(resp);
     if(!resp.ok){
-      let msg = d.detail || d.erro || 'Erro ao abrir box';
+      let msg = (d && (d.detail || d.erro)) || 'Erro ao abrir box';
       if(String(msg).startsWith('SEM_ESPACO')){
         let tipo = msg.split('_').pop() || tam;
         document.getElementById('semEspacoBox').style.display='block';
@@ -260,16 +282,41 @@ async function confirmar(){
         btn.disabled = false; btn.innerText = 'ABRIR BOX →'; return;
       } else { throw new Error(msg); }
     }
-    let boxReal = d.box || '07';
-    document.getElementById('boxRecibo').innerText = boxReal;
-    document.getElementById('boxStatus').innerHTML = `🔓 BOX ${boxReal} ABERTO (${tam}) - COLOQUE A ENCOMENDA<br>E FECHE A PORTA`;
+    // MARQUINHOS - SEM fallback BOX 07, SEM protocolo do frontend
+    if(!d || !d.box){
+      console.error('[SmartCube] confirmar entrega sem box', d);
+      throw new Error('Box não informado pelo servidor. Nenhum box foi aberto.');
+    }
+    const protocoloReal = d.protocolo || d.codigo_retirada || d.codigo || d.codigo_protocolo;
+    if(!protocoloReal){
+      console.error('[SmartCube] confirmar entrega sem protocolo', d);
+      throw new Error('Protocolo não informado pelo servidor. Nenhum box foi aberto.');
+    }
+    document.getElementById('protocolo').innerText = protocoloReal;
+    document.getElementById('dataTxt').innerText = dataStr;
+    document.getElementById('horaTxt').innerText = horaStr;
+    document.getElementById('boxRecibo').innerText = d.box;
+    document.getElementById('boxStatus').innerText = `🔓 BOX ${d.box} ABERTO (${tam}) - COLOQUE A ENCOMENDA E FECHE A PORTA`;
     document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
     document.getElementById('s3').classList.add('active');
   }catch(err){
-    alert('Erro: '+err.message);
+    clearTimeout(timer);
+    console.error('[SmartCube] confirmar entrega', err);
+    if(err && err.name === 'AbortError') alert('Tempo esgotado. Tente de novo.');
+    else alert('Erro: '+err.message);
     btn.disabled = false; btn.innerText = 'ABRIR BOX →';
   }
 }
+// Navegação sem onclick inline
+document.getElementById('btnVoltarInicio1').addEventListener('click', ()=>{ location.href='/tablet'; });
+document.getElementById('btnVoltarInicio2').addEventListener('click', ()=>{ location.href='/tablet'; });
+document.getElementById('btnVoltarBloco').addEventListener('click', voltarBloco);
+document.getElementById('btnVoltarDest').addEventListener('click', voltarDest);
+document.getElementById('btnConf').addEventListener('click', confirmar);
+document.getElementById('btnConcluir').addEventListener('click', ()=>{ location.href='/tablet'; });
+document.querySelectorAll('.size').forEach(el=>{
+  el.addEventListener('click', ()=>sel(el.dataset.tam, el));
+});
 carregarInfo();
 </script>
 </body>
