@@ -147,6 +147,16 @@ def tablet_abrir_porta(request: Request, dados: dict, tablet: dict = Depends(ver
         if acao == "RETIRADA" and not tem:
             raise HTTPException(404, "Nenhuma entrega ativa nesse box")
 
+    _FILA_ABERTURA.append({
+        "box": box,
+        "condominio_id": condominio_id,
+        "nonce": nonce,
+        "origem": "ABRIR_PORTA_TABLET",
+        "lado": lado,
+        "acao": acao,
+        "criado_em": now_brt().isoformat(),
+    })
+
     registrar_auditoria("ABRIR_PORTA", detalhes=f"Box {box} Lado {lado} Ação {acao}", condominio_id=condominio_id, request=request)
     return {
         "ok": True,
