@@ -57,7 +57,7 @@ def verificar_tablet_token(request: Request, x_tablet_token: str = Header(None))
 def verificar_esp32_token(request: Request, x_device_token: str = Header(None)):
     esperado = os.getenv("ESP32_DEVICE_TOKEN", "")
     token = x_device_token or request.headers.get("X-ESP32-Token") or ""
-      if not esperado:
+        if not esperado:
         raise HTTPException(500, "ESP32_DEVICE_TOKEN não configurado no .env")
     if not token or not secrets.compare_digest(token, esperado):
         raise HTTPException(401, "Token do ESP32 inválido")
