@@ -1328,6 +1328,8 @@ async def api_entregas_compat(payload: dict, request: Request = None, api_key: d
             codigo_morador = f"{secrets.randbelow(900000)+100000:06d}"
             if codigo_morador not in existentes_cod:
                 break
+        # CORRIGIDO: protocolo sempre gerado no servidor, nunca aceita do frontend
+        protocolo_entregador = f"SC-ENT-{condominio_id}-{int(time.time())}-{secrets.token_hex(3).upper()}"
         nova = {
             "box": str(box_req).zfill(2),
             "bloco": payload.get("bloco",""),
@@ -1335,7 +1337,7 @@ async def api_entregas_compat(payload: dict, request: Request = None, api_key: d
             "codigo": codigo_morador,
             "codigo_retirada": codigo_morador,
             "qr_code": f"SC-RET-{secrets.token_hex(6).upper()}",
-            "protocolo": payload.get("protocolo") or f"SC-{secrets.randbelow(900000)+100000}",
+            "protocolo": protocolo_entregador,
             "data": payload.get("data") or now_brt().strftime("%d/%m/%Y"),
             "hora": payload.get("hora") or now_brt().strftime("%H:%M"),
             "created_at": payload.get("data_hora") or now_brt().isoformat(),
@@ -1347,7 +1349,6 @@ async def api_entregas_compat(payload: dict, request: Request = None, api_key: d
         save_json(ARQ_DADOS, dados)
         registrar_auditoria("ENTREGA_API", detalhes=nova["protocolo"], request=request)
         return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "bloco": nova["bloco"]}
-
 @app.post("/api/retiradas")
 async def api_retiradas_compat(payload: dict, request: Request = None, api_key: dict = Depends(verificar_api_key)):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
