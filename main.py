@@ -175,19 +175,22 @@ def tablet_abrir_porta(request: Request, dados: dict, tablet: dict = Depends(ver
 
 @app.get("/api/tablet/proxima-abertura")
 def tablet_proxima_abertura(request: Request, tablet: dict = Depends(verificar_tablet_token)):
+    # CORRIGIDO ETAPA 1: Tablet só LÊ status, nunca dá pop.
+    # Só o ESP32 executa e consome via /api/esp32/confirmar
     condominio_id = str(request.state.tablet_condominio_id)
-    for i, item in enumerate(list(_FILA_ABERTURA)):
-        if str(item.get("condominio_id")) == condominio_id:
-            _FILA_ABERTURA.pop(i)
-            return {
-                "tem_comando": True,
-                "box": item.get("box"),
-                "lado": item.get("lado"),
-                "acao": item.get("acao"),
-                "nonce": item.get("nonce"),
-                "comando": f"OPEN:{item.get('box')}:{item.get('lado')}",
-            }
-    return {"tem_comando": False}
+    cmds = [c for c in list(_FILA_ABERTURA) if str(c.get("condominio_id")) == condominio_id]
+    if not cmds:
+        return {"tem_comando": False}
+    item = cmds[0]
+    return {
+        "tem_comando": True,
+        "box": item.get("box"),
+        "lado": item.get("lado"),
+        "acao": item.get("acao"),
+        "nonce": item.get("nonce"),
+        "comando": f"OPEN:{item.get('box')}:{item.get('lado')}",
+        "status": "AGUARDANDO_ESP32",
+    }
 
 # PARTE 2 - 2. TIMEOUT + LOG DE PORTA ABERTA / FECHADA
 @app.post("/api/tablet/porta-evento")
