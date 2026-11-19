@@ -29,7 +29,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Antes COPY . . copiava .env com SECRET_JWT, moradores.json com 232 nomes, .git
 # Pra isso funcionar, cria o .dockerignore do próximo bloco
 COPY main.py .
-COPY models.py .
+COPY database.py .
+COPY requirements.txt .
 COPY static/ ./static/
 COPY templates/ ./templates/
 
