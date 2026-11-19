@@ -119,7 +119,10 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 
 </div>
 <script>
-function getTabletToken(){ return localStorage.getItem('tablet_token') || ''; }
+// CORRIGIDO: sessionStorage, não localStorage - antes token do tablet ficava pra sempre, desligava e continuava travado
+function getTabletToken(){ return sessionStorage.getItem('tablet_token') || localStorage.getItem('tablet_token') || ''; }
+// CORRIGIDO: migra token antigo pra sessionStorage e apaga do localStorage na primeira carga
+(function(){ let t=localStorage.getItem('tablet_token'); if(t){ sessionStorage.setItem('tablet_token', t); localStorage.removeItem('tablet_token'); } })();
 let tabletInfo = null;
 let blocoSel = '';
 let aptoSel = '';
@@ -127,7 +130,6 @@ let tam = '';
 let listaBlocos = [];
 let listaAptos = [];
 
-// MARQUINHOS - valida content-type antes de .json()
 async function safeJson(r){
   const ct = r.headers.get('content-type') || '';
   if(!ct.includes('application/json')) return null;
@@ -143,9 +145,9 @@ async function carregarInfo(){
     tabletInfo = await safeJson(r);
     if(!tabletInfo) throw new Error('resposta invalida');
     let txt = (tabletInfo.codigo_armario || 'ARM') + ' • ' + (tabletInfo.condominio_nome || '');
-    document.getElementById('armInfo').innerText = txt;
-    document.getElementById('armInfo2').innerText = txt;
-    document.getElementById('condominioNome').innerText = tabletInfo.condominio_nome || 'Residencial';
+    document.getElementById('armInfo').textContent = txt;
+    document.getElementById('armInfo2').textContent = txt;
+    document.getElementById('condominioNome').textContent = tabletInfo.condominio_nome || 'Residencial';
     await carregarDestino();
   }catch(e){
     console.error('[SmartCube] carregarInfo entrega', e);
@@ -155,7 +157,6 @@ async function carregarInfo(){
 }
 
 async function carregarDestino(){
-  // Só usa o que já veio no /api/tablet/info - sem fetch extra sem token
   let blocos = tabletInfo.blocos || tabletInfo.lista_blocos || tabletInfo.blocks || null;
   let aptos = tabletInfo.apartamentos || tabletInfo.lista_aptos || tabletInfo.apartments || null;
   if(Array.isArray(blocos)) listaBlocos = blocos.map(b=> typeof b==='string'?b:(b.nome||b.id||b.bloco)).filter(Boolean);
@@ -167,12 +168,15 @@ async function carregarDestino(){
   else listaAptos = [];
 
   const semBloco = tabletInfo.sem_bloco || tabletInfo.tem_bloco===false || tabletInfo.possui_bloco===false;
-  if(!listaBlocos.length && !semBloco){
+  // CORRIGIDO: fallback só se backend não mandou nada E não é sem_bloco - antes inventava A-H e 101-404 em todo condomínio
+  // Se o backend mandar lista vazia de propósito, não inventa mais
+  if(!listaBlocos.length && !semBloco && !tabletInfo.blocos && !tabletInfo.lista_blocos){
     listaBlocos = ['A','B','C','D','E','F','G','H'];
   }
-  if(!listaAptos.length) listaAptos = ['101','102','103','104','201','202','203','204','301','302','303','304','401','402','403','404'];
+  if(!listaAptos.length && !tabletInfo.apartamentos && !tabletInfo.lista_aptos){
+    listaAptos = ['101','102','103','104','201','202','203','204','301','302','303','304','401','402','403','404'];
+  }
 
-  // MARQUINHOS - valida o que veio da lista antes de usar
   listaBlocos = listaBlocos.filter(b=>/^[A-Z0-9]{1,4}$/.test(String(b).toUpperCase()));
   listaAptos = listaAptos.filter(a=>/^\d{1,5}$/.test(String(a)));
 
@@ -230,13 +234,12 @@ function irTamanho(){
   if(!tabletInfo || !tabletInfo.condominio_id){ alert('Tablet não travado!'); location.href='/tablet'; return; }
   if(listaBlocos.length>0 && !blocoSel){ alert('Escolha o bloco'); mostrarBlocos(); return; }
   if(!aptoSel){ alert('Escolha o apartamento'); mostrarAptos(); return; }
-  // MARQUINHOS - validação robusta antes de continuar
   if(listaBlocos.length>0 && !/^[A-Z0-9]{1,4}$/.test(blocoSel)){ alert('Bloco inválido'); mostrarBlocos(); return; }
   if(!/^\d{1,5}$/.test(aptoSel)){ alert('Apartamento inválido'); mostrarAptos(); return; }
   let bTxt = listaBlocos.length>0 ? `Bloco ${blocoSel} • ` : '';
-  document.getElementById('destTxt').innerText = bTxt + `Apto ${aptoSel}`;
-  document.getElementById('bTxt').innerText = blocoSel || '-';
-  document.getElementById('aTxt').innerText = aptoSel;
+  document.getElementById('destTxt').textContent = bTxt + `Apto ${aptoSel}`;
+  document.getElementById('bTxt').textContent = blocoSel || '-';
+  document.getElementById('aTxt').textContent = aptoSel;
   document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
   document.getElementById('s2').classList.add('active');
 }
@@ -251,7 +254,7 @@ function sel(t,el){
   el.classList.add('active');
   document.getElementById('btnConf').disabled=false;
   document.getElementById('semEspacoBox').style.display='none';
-  document.getElementById('tTxt').innerText=t;
+  document.getElementById('tTxt').textContent=t;
 }
 async function confirmar(){
   let btn = document.getElementById('btnConf');
@@ -260,7 +263,6 @@ async function confirmar(){
   if(!/^\d{1,5}$/.test(aptoSel)){ alert('Apartamento inválido'); return; }
   btn.disabled = true; btn.innerText = 'ABRINDO...';
   let bloco = blocoSel; let apto = aptoSel;
-  let n=new Date(); let dataStr=n.toLocaleDateString('pt-BR'); let horaStr=n.toLocaleTimeString('pt-BR').slice(0,5);
   const controller = new AbortController();
   const timer = setTimeout(()=>controller.abort(), 10000);
   try{
@@ -278,11 +280,10 @@ async function confirmar(){
       if(String(msg).startsWith('SEM_ESPACO')){
         let tipo = msg.split('_').pop() || tam;
         document.getElementById('semEspacoBox').style.display='block';
-        document.getElementById('semEspacoTxt').innerText = `🔴 SEM ESPAÇO PARA ${tipo} - Todas as portas ${tipo} estão ocupadas. Tente contato com o síndico.`;
+        document.getElementById('semEspacoTxt').textContent = `🔴 SEM ESPAÇO PARA ${tipo} - Todas as portas ${tipo} estão ocupadas. Tente contato com o síndico.`;
         btn.disabled = false; btn.innerText = 'ABRIR BOX →'; return;
       } else { throw new Error(msg); }
     }
-    // MARQUINHOS - SEM fallback BOX 07, SEM protocolo do frontend
     if(!d || !d.box){
       console.error('[SmartCube] confirmar entrega sem box', d);
       throw new Error('Box não informado pelo servidor. Nenhum box foi aberto.');
@@ -292,11 +293,15 @@ async function confirmar(){
       console.error('[SmartCube] confirmar entrega sem protocolo', d);
       throw new Error('Protocolo não informado pelo servidor. Nenhum box foi aberto.');
     }
-    document.getElementById('protocolo').innerText = protocoloReal;
-    document.getElementById('dataTxt').innerText = dataStr;
-    document.getElementById('horaTxt').innerText = horaStr;
-    document.getElementById('boxRecibo').innerText = d.box;
-    document.getElementById('boxStatus').innerText = `🔓 BOX ${d.box} ABERTO (${tam}) - COLOQUE A ENCOMENDA E FECHE A PORTA`;
+    // CORRIGIDO: data/hora do backend, não do tablet - antes tablet com relógio errado gerava comprovante com data errada
+    // Backend deve mandar d.data e d.hora, se não mandar usa agora como fallback
+    let dataStr = d.data || new Date().toLocaleDateString('pt-BR');
+    let horaStr = d.hora || new Date().toLocaleTimeString('pt-BR').slice(0,5);
+    document.getElementById('protocolo').textContent = protocoloReal;
+    document.getElementById('dataTxt').textContent = dataStr;
+    document.getElementById('horaTxt').textContent = horaStr;
+    document.getElementById('boxRecibo').textContent = d.box;
+    document.getElementById('boxStatus').textContent = `🔓 BOX ${d.box} ABERTO (${tam}) - COLOQUE A ENCOMENDA E FECHE A PORTA`;
     document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
     document.getElementById('s3').classList.add('active');
   }catch(err){
@@ -307,7 +312,6 @@ async function confirmar(){
     btn.disabled = false; btn.innerText = 'ABRIR BOX →';
   }
 }
-// Navegação sem onclick inline
 document.getElementById('btnVoltarInicio1').addEventListener('click', ()=>{ location.href='/tablet'; });
 document.getElementById('btnVoltarInicio2').addEventListener('click', ()=>{ location.href='/tablet'; });
 document.getElementById('btnVoltarBloco').addEventListener('click', voltarBloco);
