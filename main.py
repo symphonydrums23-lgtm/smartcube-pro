@@ -1613,19 +1613,33 @@ def abrir_box_remoto(box_id: str, payload: dict, request: Request, token: str = 
     motivo = str((payload or {}).get("motivo") or "MANUTENCAO").strip().upper()
     if not achado:
         motivo = "MANUTENCAO_SEM_ENTREGA"
+
+    # CORRIGIDO ETAPA 1 - Comando padronizado igual tablet / ESP32
+    # Se tem entrega -> ENTREGA (só abre, não retira)
+    # Se não tem entrega -> MANUTENCAO (só abre, não mexe na lista)
+    if achado:
+        acao_padrao = "ENTREGA"
+        lado_padrao = "F"
+    else:
+        acao_padrao = "MANUTENCAO"
+        lado_padrao = "F"
+
     # Joga na fila - NÃO marca como retirado ainda, ESP32 confirma depois
-    nonce = f"ADMIN-{condominio_id}-{box_id}-{int(time.time())}"
+    nonce = f"ADMIN-{condominio_id}-{box_id}-{int(time.time())}-{secrets.token_hex(3).upper()}"
     _FILA_ABERTURA.append({
         "box": box_id,
         "condominio_id": condominio_id,
         "nonce": nonce,
         "origem": "ADMIN_REMOTO",
         "motivo": motivo,
+        "lado": lado_padrao,
+        "acao": acao_padrao,
         "sem_entrega": not bool(achado),
         "criado_em": now_brt().isoformat(),
     })
-    registrar_auditoria("ABERTURA_REMOTA_ADMIN", usuario=TOKENS_VALIDOS.get(token,{}).get("user","admin"), detalhes=f"Abertura remota Box {box_id} Cond {condominio_id} Motivo {motivo} SemEntrega={not bool(achado)} Nonce {nonce}", condominio_id=condominio_id, request=request)
-    return {"ok": True, "box": box_id, "condominio_id": condominio_id, "nonce": nonce, "sem_entrega": not bool(achado), "msg": f"Comando na fila - Box {box_id} Cond {condominio_id} {'(sem entrega - manutencao)' if not achado else ''}"}
+    registrar_auditoria("ABERTURA_REMOTA_ADMIN", usuario=TOKENS_VALIDOS.get(token,{}).get("user","admin"), detalhes=f"Abertura remota Box {box_id} Cond {condominio_id} Motivo {motivo} Acao {acao_padrao} Lado {lado_padrao} SemEntrega={not bool(achado)} Nonce {nonce}", condominio_id=condominio_id, request=request)
+    return {"ok": True, "box": box_id, "condominio_id": condominio_id, "nonce": nonce, "lado": lado_padrao, "acao": acao_padrao, "sem_entrega": not bool(achado), "msg": f"Comando na fila - Box {box_id} Cond {condominio_id} {'(sem entrega - manutencao)' if not achado else ''}"}
+
 @app.post("/api/condominios/{cond_id}/abrir-box")
 def abrir_box_por_condominio(cond_id: str, payload: dict, request: Request, token: str = Depends(requer_auth)):
     box = str(payload.get("box") or payload.get("box_id") or "").strip()
