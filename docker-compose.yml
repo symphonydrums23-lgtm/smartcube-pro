@@ -2,39 +2,75 @@ services:
   db:
     image: postgres:15
     restart: always
+    container_name: smartcube-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    env_file:
-      - .env
+    networks:
+      - smartcube-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # CORRIGIDO: tirado env_file: .env daqui - o db não precisa de SECRET_JWT, SMARTCUBE_USER, etc.
+    # Antes ele recebia todos os segredos do app à toa.
 
   app:
     build: .
     restart: always
-    ports:
-      - "8000:8000"
+    container_name: smartcube-app
+    # CORRIGIDO: tirado ports: "8000:8000" - antes o backend ficava exposto direto,
+    # pulando Caddy, HTTPS e HSTS. Agora só o Caddy fala com ele, pela rede interna.
+    # Sem ports aqui, ninguém de fora acessa :8000 direto.
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    networks:
+      - smartcube-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    # CORRIGIDO: trava recurso pra um container não comer toda a nuvem
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   caddy:
     image: caddy:2
     restart: always
+    container_name: smartcube-caddy
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - app
+      app:
+        condition: service_healthy
+    networks:
+      - smartcube-net
 
 volumes:
   pgdata:
   caddy_data:
   caddy_config:
+
+networks:
+  smartcube-net:
+    driver: bridge
