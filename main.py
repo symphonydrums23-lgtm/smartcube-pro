@@ -1691,16 +1691,13 @@ def esp32_confirmar(payload: dict, request: Request, _esp: bool = Depends(verifi
     nonce = str(payload.get("nonce") or "").strip()
     if not nonce:
         raise HTTPException(400, "Nonce obrigatório")
-    # PROVA FISICA: ESP tem que provar que a porta realmente abriu
     porta_aberta = payload.get("porta_aberta")
     sensor = payload.get("sensor_abertura")
     reed = payload.get("reed")
     prova = porta_aberta is True or sensor is True or reed is True
     if not prova:
         raise HTTPException(400, "Prova fisica obrigatoria: ESP precisa enviar porta_aberta=true ou sensor_abertura=true")
-    # ANTI-REPLAY: nonce já usado não abre de novo
     agora_ts = time.time()
-    # limpa nonces expirados pra não crescer infinito
     for n in list(_NONCES_EXPIRACAO.keys()):
         if _NONCES_EXPIRACAO[n] < agora_ts:
             _NONCES_USADOS.discard(n)
@@ -1711,14 +1708,18 @@ def esp32_confirmar(payload: dict, request: Request, _esp: bool = Depends(verifi
         if c["nonce"] == nonce:
             if str(c["condominio_id"]) != cond_esp:
                 raise HTTPException(403, "Nonce de outro condominio")
+            # ALTERADO - rejeita comando expirado > 60s
+            try:
+                criado = datetime.fromisoformat(c.get("criado_em", "")).timestamp()
+            except:
+                criado = agora_ts
+            if agora_ts - criado > 60:
+                _FILA_ABERTURA.remove(c)
+                raise HTTPException(410, "Comando expirado - peça novo comando")
             _FILA_ABERTURA.remove(c)
-            # Marca nonce como usado por 10 minutos
             _NONCES_USADOS.add(nonce)
             _NONCES_EXPIRACAO[nonce] = agora_ts + 600
-
             acao_cmd = str(c.get("acao") or "").upper()
-            # CORRIGIDO ETAPA 1: só RETIRADA tira da lista
-            # ENTREGA / MANUTENCAO / ADMIN = só abre, registra auditoria, NÃO mexe na lista
             if acao_cmd == "RETIRADA":
                 dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
                 nova_lista = []
@@ -1737,7 +1738,6 @@ def esp32_confirmar(payload: dict, request: Request, _esp: bool = Depends(verifi
                     dados["lista"] = nova_lista
                     dados["historico"].append(achado)
                     save_json(ARQ_DADOS, dados)
-
             registrar_auditoria("ABERTURA_ESP32_CONFIRMADA", detalhes=f"Box {c['box']} Cond {c['condominio_id']} Acao {acao_cmd} Nonce {nonce} Prova {porta_aberta}/{sensor}/{reed}", condominio_id=c["condominio_id"], request=request)
             return {"ok": True, "box": c["box"], "acao": acao_cmd}
     raise HTTPException(404, "Nonce não encontrado ou expirado")
