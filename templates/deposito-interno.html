@@ -34,9 +34,9 @@ body{background:#0a0a0c;min-height:100vh;display:flex;flex-direction:column;colo
 <div class="icon-circle">🔄</div>
 <div class="h1">Encomenda errada?<br>Devolva por dentro</div>
 <div class="sub">Não precisa sair do condomínio. Abra o lado de dentro, coloque de volta e informe o destino correto.</div>
-<div class="field"><span>🔒</span><input id="codigo" placeholder="CÓDIGO DA ENCOMENDA" maxlength="20"></div>
-<div class="field"><span>🏢</span><input id="bloco" placeholder="BLOCO CORRETO • Ex: B" maxlength="4"></div>
-<div class="field"><span>🏠</span><input id="apto" placeholder="APTO CORRETO • Ex: 303"></div>
+<div class="field"><span>🔒</span><input id="codigo" placeholder="CÓDIGO DA ENCOMENDA" maxlength="20" autocomplete="off"></div>
+<div class="field"><span>🏢</span><input id="bloco" placeholder="BLOCO CORRETO • Ex: B" maxlength="4" autocomplete="off"></div>
+<div class="field"><span>🏠</span><input id="apto" placeholder="APTO CORRETO • Ex: 303" autocomplete="off"></div>
 <div id="erroMsg" class="msg-erro"></div>
 <button class="btn-primary" id="btnDev" onclick="devolver()">ABRIR BOX LADO B →</button>
 <button class="btn-sec" onclick="location.href='/tablet'">VOLTAR AO INÍCIO</button>
@@ -55,33 +55,56 @@ body{background:#0a0a0c;min-height:100vh;display:flex;flex-direction:column;colo
 </div>
 </div>
 <script>
-function getTabletToken(){ return localStorage.getItem('tablet_token') || ''; }
+// CORRIGIDO: validação no front, antes aceitava código vazio, bloco com script, apto com 100 caracteres
+function validar(cod, bloco, apto){
+  if(!/^[A-Z0-9]{4,20}$/.test(cod)) return 'Código inválido. Use só letras e números, 4 a 20 caracteres.';
+  if(!/^[A-Z0-9]{1,4}$/.test(bloco)) return 'Bloco inválido.';
+  if(!/^[A-Z0-9]{1,10}$/.test(apto)) return 'Apto inválido.';
+  return '';
+}
+function getTabletToken(){ return sessionStorage.getItem('tablet_token') || ''; }
+function showErro(msg){
+  let erro=document.getElementById('erroMsg');
+  // CORRIGIDO: textContent, não innerText com erro vindo do backend sem escape
+  erro.textContent=msg;
+  erro.style.display='block';
+}
 async function devolver(){
   let cod = document.getElementById('codigo').value.trim().toUpperCase();
   let bloco = document.getElementById('bloco').value.trim().toUpperCase();
-  let apto = document.getElementById('apto').value.trim();
+  let apto = document.getElementById('apto').value.trim().toUpperCase();
   let erro = document.getElementById('erroMsg');
   let btn = document.getElementById('btnDev');
   erro.style.display='none';
-  if(!cod || !bloco || !apto){ erro.innerText='Preencha código, bloco e apto correto'; erro.style.display='block'; return; }
+  let v = validar(cod, bloco, apto);
+  if(v){ showErro(v); return; }
+  // CORRIGIDO: trava botão + timeout, antes se a rede caísse ficava PROCESSANDO pra sempre e morador clicava 5x abrindo 5x
   btn.disabled=true; btn.innerText='PROCESSANDO...';
+  let ctrl = new AbortController();
+  let timeout = setTimeout(()=>ctrl.abort(), 15000);
   try{
     let resp = await fetch('/api/tablet/deposito-interno',{
       method:'POST',
       headers:{'Content-Type':'application/json','X-Tablet-Token':getTabletToken()},
-      body: JSON.stringify({ codigo: cod, bloco: bloco, apartamento: apto })
+      body: JSON.stringify({ codigo: cod, bloco: bloco, apartamento: apto }),
+      signal: ctrl.signal
     });
-    let d = await resp.json();
+    let d = await resp.json().catch(()=>({}));
     if(!resp.ok) throw new Error(d.detail || 'Erro ao devolver');
-    document.getElementById('boxStatus').innerHTML = `🔓 BOX ${d.box} ABERTO - COLOQUE DE VOLTA<br>E FECHE A PORTA`;
-    document.getElementById('novoCodigo').innerText = d.novo_codigo;
-    document.getElementById('novoDestino').innerText = `Bloco ${d.bloco} • Apto ${d.apartamento}`;
-    document.getElementById('boxTxt').innerText = d.box;
+    // CORRIGIDO: textContent, não innerHTML com d.box vindo do backend
+    // Antes: box com "<img onerror=...>" executava no tablet
+    document.getElementById('boxStatus').textContent = `🔓 BOX ${d.box} ABERTO - COLOQUE DE VOLTA E FECHE A PORTA`;
+    document.getElementById('novoCodigo').textContent = d.novo_codigo || '-';
+    document.getElementById('novoDestino').textContent = `Bloco ${d.bloco} • Apto ${d.apartamento}`;
+    document.getElementById('boxTxt').textContent = d.box || '-';
     document.getElementById('s1').classList.remove('active');
     document.getElementById('s2').classList.add('active');
   }catch(e){
-    erro.innerText='❌ '+e.message; erro.style.display='block';
+    if(e.name==='AbortError') showErro('❌ Tempo esgotado, tente de novo. Box NÃO foi aberto.');
+    else showErro('❌ '+e.message);
     btn.disabled=false; btn.innerText='ABRIR BOX LADO B →';
+  }finally{
+    clearTimeout(timeout);
   }
 }
 </script>
