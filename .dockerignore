@@ -1,0 +1,58 @@
+# CORRIGIDO: sem isso o Docker manda TUDO pro Render, inclusive .env com senha e .git com histórico
+.git
+.gitignore
+.github
+
+# Segredos - NUNCA vão pra imagem
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials.json
+serviceAccount*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+.env_venv/
+
+# Flutter / build
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.apk
+*.aab
+*.ipa
+
+# Node / front
+node_modules/
+dist/
+.next/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# Arquivos locais de teste
+*.sqlite
+*.db
+test_*.py
+tests/
+.env.local
+.env.development
+tablet_token.txt
