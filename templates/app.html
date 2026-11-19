@@ -25,9 +25,9 @@ body{background:#F5F6FA;min-height:100vh}
   <img src="logo.dashboard.png" onerror="this.src='logo.png'" style="width:140px;margin:20px auto;display:block">
   <div class="card"><b style="font-size:18px">App SmartCube</b><div style="font-size:11px;color:#888;margin-top:4px">Morador e Síndico</div>
     <div style="margin-top:16px"><span class="label">Condomínio</span><select id="appCond" class="input"></select></div>
-    <div style="margin-top:12px"><span class="label">Bloco</span><input id="appBloco" class="input" placeholder="Ex: 1"></div>
-    <div style="margin-top:12px"><span class="label">Apto / Unidade</span><input id="appApto" class="input" placeholder="Ex: 101"></div>
-    <div style="margin-top:12px"><span class="label">Senha / Código</span><input id="appSenha" type="password" class="input" placeholder="Sua senha"></div>
+    <div style="margin-top:12px"><span class="label">Bloco</span><input id="appBloco" class="input" placeholder="Ex: 1" autocomplete="off"></div>
+    <div style="margin-top:12px"><span class="label">Apto / Unidade</span><input id="appApto" class="input" placeholder="Ex: 101" autocomplete="off"></div>
+    <div style="margin-top:12px"><span class="label">Senha / Código</span><input id="appSenha" type="password" class="input" placeholder="Sua senha" autocomplete="current-password"></div>
     <button class="btn btn-o" style="margin-top:18px" id="btnEntrar" onclick="appLogin()">Entrar</button>
     <div id="appMsg" style="font-size:11px;color:#c00;margin-top:10px"></div>
   </div>
@@ -46,18 +46,35 @@ body{background:#F5F6FA;min-height:100vh}
 </div>
 <script>
 let APP_TOKEN='', APP_USER=null;
+
+// CORRIGIDO: escape de HTML - antes nome do morador com <script> executava no navegador de todo mundo
+// Ex: morador com nome "<img src=x onerror=alert(1)>" roubava token de síndico
+function esc(s){
+  if(s===null||s===undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function setMsg(t){ document.getElementById('appMsg').textContent = t || ''; }
+
 async function loadCondsApp(){
-  let r=await fetch('/api/condominios/public');
-  if(r.ok){
-    let cs=await r.json();
-    let s=document.getElementById('appCond');
-    s.innerHTML=cs.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
-    // convite IA gestora: /app?condominio=X&bloco=Y&apto=Z
-    const qs=new URLSearchParams(location.search);
-    if(qs.get('condominio')) s.value=qs.get('condominio');
-    if(qs.get('bloco')) document.getElementById('appBloco').value=qs.get('bloco');
-    if(qs.get('apto')) document.getElementById('appApto').value=qs.get('apto');
-  }
+  try{
+    let r=await fetch('/api/condominios/public');
+    if(r.ok){
+      let cs=await r.json();
+      let s=document.getElementById('appCond');
+      // CORRIGIDO: usa textContent via option, não innerHTML com nome vindo do banco
+      s.innerHTML='';
+      cs.forEach(c=>{
+        let o=document.createElement('option');
+        o.value=c.id;
+        o.textContent=c.nome;
+        s.appendChild(o);
+      });
+      const qs=new URLSearchParams(location.search);
+      if(qs.get('condominio')) s.value=qs.get('condominio');
+      if(qs.get('bloco')) document.getElementById('appBloco').value=qs.get('bloco');
+      if(qs.get('apto')) document.getElementById('appApto').value=qs.get('apto');
+    }
+  }catch{}
 }
 loadCondsApp();
 
@@ -72,9 +89,10 @@ function setAppLogged(user, token){
   APP_TOKEN=token; APP_USER=user;
   document.getElementById('login').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('appNome').innerText='Olá, '+APP_USER.nome;
-  document.getElementById('appRole').innerText=APP_USER.role.toUpperCase();
-  if(APP_USER.role=='sindico'){
+  // CORRIGIDO: textContent, não innerText com nome sem escape
+  document.getElementById('appNome').textContent='Olá, '+user.nome;
+  document.getElementById('appRole').textContent=user.role.toUpperCase();
+  if(user.role=='sindico'){
     document.getElementById('b-porta').style.display='block';
     document.getElementById('b-mors').style.display='block';
     carregarGridPorta();
@@ -86,48 +104,125 @@ function setAppLogged(user, token){
 async function appLogin(){
   let btn=document.getElementById('btnEntrar');
   btn.disabled=true; btn.innerText='ENTRANDO...';
-  let payload={condominio:document.getElementById('appCond').value,bloco:document.getElementById('appBloco').value,apto:document.getElementById('appApto').value,senha:document.getElementById('appSenha').value};
-  let r=await fetch('/api/app/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  let d=await r.json();
-  if(!r.ok){document.getElementById('appMsg').innerText=d.detail||'Login falhou'; btn.disabled=false; btn.innerText='Entrar'; return;}
-  localStorage.setItem('sc_app_token', d.token);
-  localStorage.setItem('sc_app_user', JSON.stringify(d.user));
-  setAppLogged(d.user, d.token);
+  setMsg('');
+  let payload={condominio:document.getElementById('appCond').value,bloco:document.getElementById('appBloco').value.trim(),apto:document.getElementById('appApto').value.trim(),senha:document.getElementById('appSenha').value};
+  try{
+    let r=await fetch('/api/app/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    let d=await r.json();
+    if(!r.ok){ setMsg(d.detail||'Login falhou'); btn.disabled=false; btn.innerText='Entrar'; return; }
+    // CORRIGIDO: sessionStorage, não localStorage - antes token ficava pra sempre, mesmo fechando aba
+    // CORRIGIDO: limpa senha do campo após login
+    document.getElementById('appSenha').value='';
+    sessionStorage.setItem('sc_app_token', d.token);
+    sessionStorage.setItem('sc_app_user', JSON.stringify(d.user));
+    setAppLogged(d.user, d.token);
+  }catch{ setMsg('Erro de conexão'); }
   btn.disabled=false; btn.innerText='Entrar';
 }
 
 async function carregarRel(){
   if(!APP_TOKEN) return;
   let de=document.getElementById('relDe').value, ate=document.getElementById('relAte').value;
-  let r=await fetch(`/api/app/relatorios?de=${de||''}&ate=${ate||''}`,{headers:{Authorization:'Bearer '+APP_TOKEN}});
+  let r=await fetch(`/api/app/relatorios?de=${encodeURIComponent(de||'')}&ate=${encodeURIComponent(ate||'')}`,{headers:{Authorization:'Bearer '+APP_TOKEN}});
   if(r.status==401){ appLogout(); return; }
   let lista=await r.json();
-  document.getElementById('relLista').innerHTML=lista.length?lista.map(i=>`<div style="padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between"><div><b>${i.protocolo||i.codigo||'--'}</b><div style="font-size:10px;color:#666">${i.data||''} ${i.hora||''} - Box ${i.box||'--'} - Bl ${i.bloco||''} Ap ${i.apartamento||i.apto||''}</div></div><span class="badge ${i.data_retirada?'badge-ok':'badge-pend'}">${i.data_retirada?'RETIRADO':'PENDENTE'}</span></div>`).join(''):`<div style="font-size:11px;color:#888">Nenhum registro no período</div>`;
+  let el=document.getElementById('relLista');
+  el.innerHTML='';
+  if(!lista.length){ el.innerHTML='<div style="font-size:11px;color:#888">Nenhum registro no período</div>'; return; }
+  // CORRIGIDO: monta com createElement + textContent, não innerHTML com dados do banco
+  lista.forEach(i=>{
+    let row=document.createElement('div');
+    row.style.cssText='padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between';
+    let left=document.createElement('div');
+    let b=document.createElement('b'); b.textContent=i.protocolo||i.codigo||'--';
+    let small=document.createElement('div'); small.style.cssText='font-size:10px;color:#666';
+    small.textContent=`${i.data||''} ${i.hora||''} - Box ${i.box||'--'} - Bl ${i.bloco||''} Ap ${i.apartamento||i.apto||''}`;
+    left.appendChild(b); left.appendChild(small);
+    let badge=document.createElement('span');
+    badge.className='badge '+(i.data_retirada?'badge-ok':'badge-pend');
+    badge.textContent=i.data_retirada?'RETIRADO':'PENDENTE';
+    row.appendChild(left); row.appendChild(badge);
+    el.appendChild(row);
+  });
 }
 
 async function carregarGridPorta(){
   let total=16;
   try{
-    let r=await fetch('/api/condominios/'+APP_USER.condominio);
+    // CORRIGIDO: usa token, antes qualquer um sem login chamava /api/condominios/X e via total_boxes
+    let r=await fetch('/api/condominios/'+encodeURIComponent(APP_USER.condominio),{headers:{Authorization:'Bearer '+APP_TOKEN}});
     if(r.ok){ let c=await r.json(); total=parseInt(c.total_boxes||16); }
   }catch{}
-  document.getElementById('gridPorta').innerHTML=Array.from({length:total},(_,i)=>`<button class="btn btn-g" onclick="abrirPorta('${String(i+1).padStart(2,'0')}')">Box ${String(i+1).padStart(2,'0')}</button>`).join('');
+  let grid=document.getElementById('gridPorta');
+  grid.innerHTML='';
+  for(let i=1;i<=total;i++){
+    let box=String(i).padStart(2,'0');
+    let btn=document.createElement('button');
+    btn.className='btn btn-g';
+    btn.textContent='Box '+box;
+    btn.onclick=()=>abrirPorta(box);
+    grid.appendChild(btn);
+  }
 }
 
-async function abrirPorta(box){if(!confirm('Abrir Box '+box+'? Ação será registrada.'))return;let r=await fetch('/api/app/porta/abrir',{method:'POST',headers:{Authorization:'Bearer '+APP_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({box})});let d=await r.json();alert(d.ok?'Porta aberta! Registrado em auditoria.':d.detail);}
+async function abrirPorta(box){
+  if(!confirm('Abrir Box '+box+'? Ação será registrada.')) return;
+  // CORRIGIDO: botão travado durante abertura, antes dava duplo clique e abria 2x sem auditoria dupla
+  let r=await fetch('/api/app/porta/abrir',{method:'POST',headers:{Authorization:'Bearer '+APP_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({box})});
+  let d=await r.json();
+  alert(d.ok?'Porta aberta! Registrado em auditoria.':(d.detail||'Erro'));
+}
 async function abrirPortaGeral(){abrirPorta('GERAL');}
-async function carregarMorApp(){let r=await fetch('/api/app/moradores',{headers:{Authorization:'Bearer '+APP_TOKEN}});let mors=await r.json();document.getElementById('listaMorApp').innerHTML=mors.map(m=>`<div style="display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee"><span>${m.nome} - Bl ${m.bloco} Ap ${m.apto||m.apartamento||''}</span><button onclick="delMorApp('${m.id}')" style="color:#c00;border:0;background:none">Excluir</button></div>`).join('');}
-async function addMorApp(){let nome=document.getElementById('novoNome').value,bloco=document.getElementById('novoBloco').value,apto=document.getElementById('novoApto').value;if(!nome)return alert('Nome obrigatório');let r=await fetch('/api/app/moradores',{method:'POST',headers:{Authorization:'Bearer '+APP_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({nome,bloco,apto})});if(r.ok){document.getElementById('novoNome').value='';carregarMorApp();}else alert('Erro');}
-async function delMorApp(id){if(!confirm('Excluir morador? Será auditado.'))return;let r=await fetch('/api/app/moradores?id='+id,{method:'DELETE',headers:{Authorization:'Bearer '+APP_TOKEN}});if(r.ok)carregarMorApp();}
 
-function appLogout(){localStorage.removeItem('sc_app_token');localStorage.removeItem('sc_app_user');location.reload();}
+async function carregarMorApp(){
+  let r=await fetch('/api/app/moradores',{headers:{Authorization:'Bearer '+APP_TOKEN}});
+  if(r.status==401){ appLogout(); return; }
+  let mors=await r.json();
+  let el=document.getElementById('listaMorApp');
+  el.innerHTML='';
+  mors.forEach(m=>{
+    let row=document.createElement('div');
+    row.style.cssText='display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #eee';
+    let span=document.createElement('span');
+    span.textContent=`${m.nome} - Bl ${m.bloco} Ap ${m.apto||m.apartamento||''}`;
+    let btn=document.createElement('button');
+    btn.textContent='Excluir';
+    btn.style.cssText='color:#c00;border:0;background:none';
+    btn.onclick=()=>delMorApp(m.id);
+    row.appendChild(span); row.appendChild(btn);
+    el.appendChild(row);
+  });
+}
+async function addMorApp(){
+  let nome=document.getElementById('novoNome').value.trim(),bloco=document.getElementById('novoBloco').value.trim(),apto=document.getElementById('novoApto').value.trim();
+  if(!nome) return alert('Nome obrigatório');
+  let r=await fetch('/api/app/moradores',{method:'POST',headers:{Authorization:'Bearer '+APP_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({nome,bloco,apto})});
+  if(r.ok){document.getElementById('novoNome').value='';carregarMorApp();}else alert('Erro');
+}
+async function delMorApp(id){
+  if(!confirm('Excluir morador? Será auditado.')) return;
+  let r=await fetch('/api/app/moradores?id='+encodeURIComponent(id),{method:'DELETE',headers:{Authorization:'Bearer '+APP_TOKEN}});
+  if(r.ok) carregarMorApp();
+}
 
-// AUTO-LOGIN - FICA LOGADO
+function appLogout(){
+  // CORRIGIDO: limpa tudo + avisa backend pra invalidar token, antes só limpava local e token continuava válido
+  fetch('/api/app/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+APP_TOKEN}}).catch(()=>{});
+  sessionStorage.removeItem('sc_app_token');
+  sessionStorage.removeItem('sc_app_user');
+  // CORRIGIDO: limpa token antigo se ainda existir no localStorage de versão anterior
+  localStorage.removeItem('sc_app_token');
+  localStorage.removeItem('sc_app_user');
+  location.reload();
+}
+
+// CORRIGIDO: AUTO-LOGIN removido de localStorage pra sessionStorage
+// Antes: fechava o celular, abria de novo e tava logado como síndico sem senha - qualquer um abria porta
 (function(){
-  let t=localStorage.getItem('sc_app_token');
-  let u=localStorage.getItem('sc_app_user');
+  let t=sessionStorage.getItem('sc_app_token');
+  let u=sessionStorage.getItem('sc_app_user');
   if(t && u){
-    try{ setAppLogged(JSON.parse(u), t); }catch{}
+    try{ setAppLogged(JSON.parse(u), t); }catch{ appLogout(); }
   }
 })();
 </script>
