@@ -1,11 +1,36 @@
-fastapi
-uvicorn[standard]
-sqlalchemy
-python-jose[cryptography]
-passlib[bcrypt]
-python-multipart
-jinja2
-PyJWT
-python-dotenv
-websockets
-pytz
+# SmartCube - requirements.txt v2 - corrigido
+# Python 3.11+
+
+# Core - mantém igual
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+sqlalchemy==2.0.36
+python-multipart==0.0.18
+jinja2==3.1.5
+python-dotenv==1.0.1
+websockets==14.2
+
+# JWT - CORRIGIDO: tira python-jose (abandonado), fica só PyJWT
+PyJWT==2.10.1
+cryptography==44.0.0
+
+# Senha - CORRIGIDO: tira passlib[bcrypt] (morto), usa bcrypt direto
+bcrypt==4.1.0
+
+# Banco - CORRIGIDO: faltava driver Postgres
+psycopg2-binary==2.9.10
+alembic==1.14.0
+
+# Validação - CORRIGIDO: faltava, pra validar email / login
+pydantic==2.10.4
+pydantic-settings==2.6.1
+email-validator==2.2.0
+
+# Segurança - CORRIGIDO: faltava rate limit
+slowapi==0.1.9
+
+# HTTP - pra falar com ESP32 / webhook
+httpx==0.28.1
+
+# Testes
+pytest==8.3.4
