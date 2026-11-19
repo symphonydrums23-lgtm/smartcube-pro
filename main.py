@@ -1658,8 +1658,16 @@ def esp32_poll(request: Request, condominio_id: str = Query(None), _esp: bool = 
         raise HTTPException(403, "condominio_id da query diferente do header do ESP")
     condominio_id = cond_esp
     agora = time.time()
-    # Limpa fila velha > 60s
-    _FILA_ABERTURA[:] = [c for c in _FILA_ABERTURA if agora - time.mktime(datetime.fromisoformat(c["criado_em"]).timetuple()) < 60] if _FILA_ABERTURA else []
+    # Limpa só expirados > 60s, sem quebrar por data inválida
+    nova_fila = []
+    for c in list(_FILA_ABERTURA):
+        try:
+            criado = datetime.fromisoformat(c["criado_em"]).timestamp()
+        except:
+            criado = agora
+        if agora - criado < 60:
+            nova_fila.append(c)
+    _FILA_ABERTURA[:] = nova_fila
     cmds = [c for c in _FILA_ABERTURA if str(c["condominio_id"]) == str(condominio_id)]
     return {"ok": True, "comandos": cmds}
 
