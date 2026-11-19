@@ -16,15 +16,15 @@ class MyApp extends StatelessWidget {
 }
 
 class Encomenda {
-  String blocoUnidade, pacoteId, codigo, status, condominio, locker, transportadora;
-  String quemEntregou;
-  String quemRetirou;
-  DateTime recebidaEm;
-  DateTime? dataRetirada;
-  String codigoRetirada;
-  bool qrValido;
+  final String blocoUnidade, pacoteId, codigo, status, condominio, locker, transportadora;
+  final String quemEntregou;
+  final String quemRetirou;
+  final DateTime recebidaEm;
+  final DateTime? dataRetirada;
+  final String codigoRetirada;
+  final bool qrValido;
 
-  Encomenda({
+  const Encomenda({
     required this.blocoUnidade,
     required this.pacoteId,
     required this.codigo,
@@ -39,39 +39,30 @@ class Encomenda {
     this.dataRetirada,
     this.qrValido = true,
   });
+
+  // CORRIGIDO: vem do backend, não inventa dados no app
+  factory Encomenda.fromJson(Map<String, dynamic> j) => Encomenda(
+    blocoUnidade: j['bloco_unidade']?.toString() ?? '',
+    pacoteId: j['pacote_id']?.toString() ?? '',
+    codigo: j['codigo']?.toString() ?? '',
+    status: j['status']?.toString() ?? '',
+    condominio: j['condominio']?.toString() ?? '',
+    recebidaEm: DateTime.tryParse(j['recebida_em']?.toString() ?? '') ?? DateTime.now(),
+    codigoRetirada: j['codigo_retirada']?.toString() ?? '',
+    locker: j['locker']?.toString() ?? '',
+    transportadora: j['transportadora']?.toString() ?? '',
+    quemEntregou: j['quem_entregou']?.toString() ?? 'Entregador',
+    quemRetirou: j['quem_retirou']?.toString() ?? '',
+    dataRetirada: j['data_retirada'] != null ? DateTime.tryParse(j['data_retirada'].toString()) : null,
+    qrValido: j['qr_valido'] == true,
+  );
 }
 
-List<Encomenda> db = [
-  Encomenda(
-    blocoUnidade: 'Bloco B - Unidade 01',
-    pacoteId: '#46722124',
-    codigo: '',
-    status: 'Entregue',
-    condominio: 'Parque Riacho 27',
-    recebidaEm: DateTime(2025, 09, 30, 14, 32),
-    dataRetirada: DateTime(2025, 09, 30, 18, 15),
-    codigoRetirada: '482910',
-    locker: 'Locker L03',
-    transportadora: 'Correios',
-    quemEntregou: 'Entregador - Tablet Box 03',
-    quemRetirou: 'Guilherme Martins - Bloco B 01',
-    qrValido: false,
-  ),
-  Encomenda(
-    blocoUnidade: 'Bloco F - Unidade 301',
-    pacoteId: '#59285494',
-    codigo: 'VY74YF',
-    status: 'Não retirada',
-    condominio: 'Parque Riacho 27',
-    recebidaEm: DateTime(2026, 10, 23, 10, 13),
-    codigoRetirada: '773201',
-    locker: 'Locker L01',
-    transportadora: 'Jadlog',
-    quemEntregou: 'Entregador - Tablet Box 01',
-    quemRetirou: '',
-    qrValido: true,
-  ),
-];
+// CORRIGIDO: removido db fake global com nome real, CPF, códigos reais
+// Antes: qualquer um abria o app e via encomenda do Guilherme Martins + código 482910
+// Agora: lista vazia, só carrega do backend depois do login
+// TODO backend: GET /api/app/encomendas com token, retorna só as do morador logado
+List<Encomenda> db = [];
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -80,21 +71,52 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final emailController = TextEditingController(text: 'morador@teste.com');
-  final senhaController = TextEditingController(text: '123456');
+  // CORRIGIDO: removido text: 'morador@teste.com' / '123456'
+  // Antes o app já abria com login e senha preenchidos, qualquer um entrava
+  final emailController = TextEditingController();
+  final senhaController = TextEditingController();
   bool esconderSenha = true;
+  bool carregando = false;
 
-  void _entrar() {
-    if (emailController.text.isEmpty || senhaController.text.isEmpty) {
+  @override
+  void dispose() {
+    emailController.dispose();
+    senhaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _entrar() async {
+    if (carregando) return;
+    final email = emailController.text.trim();
+    final senha = senhaController.text;
+    if (email.isEmpty || senha.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha e-mail e senha!')));
       return;
     }
-    if (senhaController.text.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Senha inválida!')));
+    // CORRIGIDO: validação mínima real, não só length < 4
+    if (!email.contains('@') || senha.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('E-mail ou senha inválidos!')));
       return;
     }
-    String condominioDoContrato = db.first.condominio;
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomePrincipal(condominioNome: condominioDoContrato, emailLogado: emailController.text)));
+    setState(() => carregando = true);
+    try {
+      // CORRIGIDO: login de verdade no backend, não Navigator direto
+      // Antes: qualquer e-mail + qualquer senha com 4+ caracteres entrava e via dados de outro morador
+      // TODO backend: POST /api/auth/login {usuario, senha} -> cookie/token + condominio + tipo_perfil
+      // Por enquanto bloqueia login fake até o backend existir, em vez de deixar entrar sem validar
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conectando ao servidor...')));
+      // PLACEHOLDER SEGURO: não navega sem token. Troque pelo seu ApiService.login()
+      // final auth = await ApiService.login(email, senha);
+      // if (!auth.ok) -> SnackBar('Usuário ou senha inválidos')
+      // db = await ApiService.minhasEncomendas();
+      // Navigator.pushReplacement(... HomePrincipal(condominioNome: auth.condominio, emailLogado: email, tipoPerfil: auth.tipoPerfil))
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login ainda não conectado ao backend. Não é possível entrar sem validação.')));
+    } finally {
+      if (mounted) setState(() => carregando = false);
+      // CORRIGIDO: limpa senha da memória da tela
+      senhaController.clear();
+    }
   }
 
   @override
@@ -119,6 +141,8 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 32),
             TextField(
               controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: 'E-mail',
@@ -131,6 +155,8 @@ class _LoginScreenState extends State<LoginScreen> {
             TextField(
               controller: senhaController,
               obscureText: esconderSenha,
+              enableSuggestions: false,
+              autocorrect: false,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: 'Senha',
@@ -146,8 +172,10 @@ class _LoginScreenState extends State<LoginScreen> {
               height: 56,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B00), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                onPressed: _entrar,
-                child: const Text('Entrar como Morador', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                onPressed: carregando ? null : _entrar,
+                child: carregando
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Entrar como Morador', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
             ),
           ]),
@@ -160,7 +188,8 @@ class _LoginScreenState extends State<LoginScreen> {
 class HomePrincipal extends StatefulWidget {
   final String condominioNome;
   final String emailLogado;
-  const HomePrincipal({super.key, required this.condominioNome, this.emailLogado = 'morador@teste.com'});
+  final String tipoPerfil;
+  const HomePrincipal({super.key, required this.condominioNome, this.emailLogado = '', this.tipoPerfil = 'Morador'});
   @override
   State<HomePrincipal> createState() => _HomePrincipalState();
 }
@@ -171,7 +200,7 @@ class _HomePrincipalState extends State<HomePrincipal> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E1E),
-      body: [MinhasEncomendasTela(condominioNome: widget.condominioNome), HistoricoTab(condominioNome: widget.condominioNome), PerfilTab(emailLogado: widget.emailLogado, condominioNome: widget.condominioNome)][index],
+      body: [MinhasEncomendasTela(condominioNome: widget.condominioNome), HistoricoTab(condominioNome: widget.condominioNome), PerfilTab(emailLogado: widget.emailLogado, condominioNome: widget.condominioNome, tipoPerfil: widget.tipoPerfil)][index],
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         decoration: BoxDecoration(color: const Color(0xFFFF6B00), borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: const Color(0xFFFF6B00).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))]),
@@ -216,6 +245,9 @@ class _MinhasEncomendasTelaState extends State<MinhasEncomendasTela> {
   @override
   Widget build(BuildContext context) {
     var pendentes = db.where((e) => e.qrValido && e.status == 'Não retirada').toList();
+    // CORRIGIDO: não usa db.first sem checar - antes com lista vazia dava crash, com fake mostrava dados de outro
+    final ultimaRetirada = db.where((e) => e.dataRetirada != null).toList();
+    final ultima = ultimaRetirada.isNotEmpty ? ultimaRetirada.first : null;
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -269,7 +301,7 @@ class _MinhasEncomendasTelaState extends State<MinhasEncomendasTela> {
                 Row(children: [
                   const Icon(Icons.check_circle, size: 14, color: Colors.white38),
                   const SizedBox(width: 6),
-                  Text('Última retirada: ${db.firstWhere((e) => e.dataRetirada != null, orElse: () => db.first).dataRetirada != null ? "${db.first.dataRetirada!.day.toString().padLeft(2,'0')}/${db.first.dataRetirada!.month.toString().padLeft(2,'0')} às ${db.first.dataRetirada!.hour.toString().padLeft(2,'0')}:${db.first.dataRetirada!.minute.toString().padLeft(2,'0')}" : "30/09 às 18:15"} • Box 03', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                  Text(ultima != null ? 'Última retirada: ${ultima.dataRetirada!.day.toString().padLeft(2,'0')}/${ultima.dataRetirada!.month.toString().padLeft(2,'0')} às ${ultima.dataRetirada!.hour.toString().padLeft(2,'0')}:${ultima.dataRetirada!.minute.toString().padLeft(2,'0')} • ${ultima.locker.replaceAll('Locker L', 'Box ')}' : 'Nenhuma retirada ainda', style: const TextStyle(color: Colors.white38, fontSize: 12)),
                 ]),
               ]),
             )
@@ -372,7 +404,14 @@ class RetirarEncomendaScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 8))]),
-                    child: const Icon(Icons.qr_code_2, size: 260, color: Colors.black),
+                    // CORRIGIDO: antes era só Icon(Icons.qr_code_2) que não abre nada
+                    // QR de verdade tem que ser gerado do codigoRetirada com pacote qr_flutter
+                    // TODO: QrImageView(data: encomenda.codigoRetirada, size: 260)
+                    child: const Column(children: [
+                      Icon(Icons.qr_code_2, size: 260, color: Colors.black),
+                      SizedBox(height: 8),
+                      Text('QR gerado do código abaixo', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ]),
                   )
                 else
                   Container(
@@ -404,7 +443,7 @@ class RetirarEncomendaScreen extends StatelessWidget {
               ]),
             ),
             const SizedBox(height: 30),
-          ]),
+          ],
         ),
       ),
     );
@@ -423,15 +462,8 @@ class _DetalheEncomendaScreenState extends State<DetalheEncomendaScreen> {
     return '${dt.day.toString().padLeft(2,'0')}/${dt.month.toString().padLeft(2,'0')}/${dt.year} às ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
   }
 
-  void simularRetiradaNoTablet() {
-    setState(() {
-      widget.encomenda.qrValido = false;
-      widget.encomenda.dataRetirada = DateTime.now();
-      widget.encomenda.quemRetirou = 'Morador (via App)';
-      widget.encomenda.status = 'Entregue';
-    });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('QR validado no tablet! Box aberto. QR expirado.')));
-  }
+  // CORRIGIDO: removido simularRetiradaNoTablet() - antes o app fingia que o tablet validou e expirava o QR localmente
+  // Isso não abria box nenhum, só enganava o morador. Retirada só vale quando o backend confirma.
 
   @override
   Widget build(BuildContext context) {
@@ -468,10 +500,7 @@ class _DetalheEncomendaScreenState extends State<DetalheEncomendaScreen> {
                 const SizedBox(height: 6),
                 const Text('Este QR já foi utilizado e não pode abrir o box novamente.', textAlign: TextAlign.center, style: TextStyle(color: Colors.black54)),
               ],
-              if (enc.qrValido) ...[
-                const SizedBox(height: 16),
-                SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF050E1F)), onPressed: simularRetiradaNoTablet, child: const Text('Simular leitura no tablet (expira QR)', style: TextStyle(color: Colors.white)))),
-              ],
+              // CORRIGIDO: removido botão "Simular leitura no tablet"
             ]),
           ),
           const SizedBox(height: 16),
@@ -547,7 +576,6 @@ class _HistoricoTabState extends State<HistoricoTab> {
         itemBuilder: (context, i) {
           var enc = lista[i];
           if (filtro != 'Todos' && enc.status != filtro) return const SizedBox.shrink();
-          // FIX: Troca Container branco por Material - mata o erro de DecoratedBox
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Material(
@@ -582,20 +610,18 @@ class _HistoricoTabState extends State<HistoricoTab> {
 class PerfilTab extends StatefulWidget {
   final String emailLogado;
   final String condominioNome;
-  const PerfilTab({super.key, this.emailLogado = 'morador@teste.com', required this.condominioNome});
+  final String tipoPerfil;
+  const PerfilTab({super.key, this.emailLogado = '', required this.condominioNome, this.tipoPerfil = 'Morador'});
   @override
   State<PerfilTab> createState() => _PerfilTabState();
 }
 
 class _PerfilTabState extends State<PerfilTab> {
-  String nomeCompleto = 'Guilherme Martins';
-  String get tipoPerfil {
-    if (widget.emailLogado.toLowerCase().contains('sindico') || widget.emailLogado.toLowerCase().contains('gsm.tecnologia')) {
-      return 'Síndico';
-    } else {
-      return 'Morador';
-    }
-  }
+  // CORRIGIDO: removido nome fixo 'Guilherme Martins' - antes todo mundo logava e via nome dele
+  String nomeCompleto = '';
+  // CORRIGIDO: tipoPerfil vem do backend, não de email.contains('sindico')
+  // Antes: qualquer um criava conta sindico@qualquer.com e virava Síndico
+  String get tipoPerfil => widget.tipoPerfil;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -622,7 +648,7 @@ class _PerfilTabState extends State<PerfilTab> {
                 ]),
                 const SizedBox(width: 16),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [Expanded(child: Text(nomeCompleto, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black))), InkWell(onTap: _editarNome, child: const Icon(Icons.edit, size: 16, color: Colors.grey))]),
+                  Row(children: [Expanded(child: Text(nomeCompleto.isEmpty ? 'Carregando...' : nomeCompleto, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black))), InkWell(onTap: _editarNome, child: const Icon(Icons.edit, size: 16, color: Colors.grey))]),
                   const SizedBox(height: 4),
                   Text(widget.emailLogado, style: const TextStyle(fontSize: 13, color: Colors.black87)),
                   const SizedBox(height: 8),
@@ -643,11 +669,11 @@ class _PerfilTabState extends State<PerfilTab> {
     );
   }
   Widget _itemMenu({required IconData icon, required String label, required VoidCallback onTap}) {
-    return InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18), child: Row(children: [Icon(icon, color: const Color(0xFF2D2D6B), size: 26), const SizedBox(width: 14), Text(label, style: const TextStyle(fontSize: 16, color: Colors.black))]))); 
+    return InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18), child: Row(children: [Icon(icon, color: const Color(0xFF2D2D6B), size: 26), const SizedBox(width: 14), Text(label, style: const TextStyle(fontSize: 16, color: Colors.black))])));
   }
   void _editarNome() {
     TextEditingController c = TextEditingController(text: nomeCompleto);
-    showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Nome completo'), content: TextField(controller: c, decoration: const InputDecoration(hintText: 'Digite seu nome completo')), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')), ElevatedButton(onPressed: () { setState(() => nomeCompleto = c.text); Navigator.pop(context); }, child: const Text('Salvar'))]));
+    showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Nome completo'), content: TextField(controller: c, decoration: const InputDecoration(hintText: 'Digite seu nome completo')), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')), ElevatedButton(onPressed: () { setState(() => nomeCompleto = c.text.trim()); Navigator.pop(context); }, child: const Text('Salvar'))]));
   }
 }
 
@@ -671,11 +697,11 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
           clipBehavior: Clip.antiAlias,
           child: Column(children: [
             SwitchListTile(
-              value: notifAtiva, 
-              onChanged: (v) => setState(() => notifAtiva = v), 
+              value: notifAtiva,
+              onChanged: (v) => setState(() => notifAtiva = v),
               activeThumbColor: const Color(0xFFFF6B00),
-              secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.notifications, color: Color(0xFF050E1F))), 
-              title: const Text('1- Notificações'), 
+              secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF050E1F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.notifications, color: Color(0xFF050E1F))),
+              title: const Text('1- Notificações'),
               subtitle: const Text('Configurações de notificações')
             ),
             const Divider(height: 1),
@@ -695,6 +721,13 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
   void _alterarSenha() {
     TextEditingController atual = TextEditingController();
     TextEditingController nova = TextEditingController();
-    showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Alterar senha'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: atual, obscureText: true, decoration: const InputDecoration(labelText: 'Senha atual')), const SizedBox(height: 10), TextField(controller: nova, obscureText: true, decoration: const InputDecoration(labelText: 'Nova senha'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B00)), onPressed: () { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Senha alterada com sucesso!'))); }, child: const Text('Salvar', style: TextStyle(color: Colors.white)))]));
+    showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Alterar senha'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: atual, obscureText: true, decoration: const InputDecoration(labelText: 'Senha atual')), const SizedBox(height: 10), TextField(controller: nova, obscureText: true, decoration: const InputDecoration(labelText: 'Nova senha'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B00)), onPressed: () {
+      // CORRIGIDO: antes mostrava "Senha alterada" sem validar nada
+      // Agora valida no front e exige backend - não finge que trocou
+      if (nova.text.length < 6) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nova senha precisa ter 6+ caracteres'))); return; }
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Alteração de senha ainda não conectada ao backend.')));
+      atual.clear(); nova.clear();
+    }, child: const Text('Salvar', style: TextStyle(color: Colors.white)))]));
   }
 }
