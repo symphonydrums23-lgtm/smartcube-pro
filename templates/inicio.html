@@ -19,9 +19,12 @@ img{width:180px;object-fit:contain}
 <div class="touch">Toque na tela para iniciar</div>
 <div class="nome" id="condNome">CARREGANDO CONDOMÍNIO...</div>
 <script>
-function getTabletToken(){ return localStorage.getItem('tablet_token') || ''; }
+// CORRIGIDO: sessionStorage, não localStorage - mesmo padrão dos outros 3 HTMLs
+// Antes token ficava pra sempre, tablet roubado continuava travado
+function getTabletToken(){ return sessionStorage.getItem('tablet_token') || localStorage.getItem('tablet_token') || ''; }
+// CORRIGIDO: migra token antigo pra sessionStorage e apaga do localStorage
+(function(){ let t=localStorage.getItem('tablet_token'); if(t){ sessionStorage.setItem('tablet_token', t); localStorage.removeItem('tablet_token'); } })();
 
-// MARQUINHOS - valida content-type antes de .json()
 async function safeJson(r){
   const ct = r.headers.get('content-type') || '';
   if(!ct.includes('application/json')) return null;
@@ -30,29 +33,25 @@ async function safeJson(r){
 
 async function carregar(){
   const el = document.getElementById('condNome');
-  const logo = document.getElementById('logoImg');
   try{
     const token = getTabletToken();
     if(!token){
-      // Sem token = tablet não travado, mostra genérico, não busca por id
-      el.innerText = 'SMART CUBE';
+      el.textContent = 'SMART CUBE';
       return;
     }
-    // CORRETO: busca pelo token do tablet, não por id do localStorage
     const r = await fetch('/api/tablet/info', { headers: { 'X-Tablet-Token': token } });
     if(!r.ok) throw new Error('token invalido');
     const d = await safeJson(r);
     if(!d) throw new Error('resposta invalida');
-    // MARQUINHOS - fallback quando c.nome não existe
-    el.innerText = d.condominio_nome ? d.condominio_nome.toUpperCase() : 'SMART CUBE';
+    // CORRIGIDO: textContent, não innerText - mais rápido, não recalcula layout, e não interpreta HTML
+    el.textContent = d.condominio_nome ? d.condominio_nome.toUpperCase() : 'SMART CUBE';
   }catch(e){
     console.error('[SmartCube] carregar inicio', e);
-    el.innerText = 'SMART CUBE';
+    el.textContent = 'SMART CUBE';
   }
 }
 carregar();
 
-// MARQUINHOS - sem onclick no body, acessível por teclado
 document.body.addEventListener('click', ()=>{ location.href = '/tablet'; });
 document.addEventListener('keydown', (e)=>{
   if(e.key === 'Enter' || e.key === ' '){
