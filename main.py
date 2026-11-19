@@ -1396,6 +1396,7 @@ async def api_entregas_compat(payload: dict, request: Request = None, api_key: d
         save_json(ARQ_DADOS, dados)
         registrar_auditoria("ENTREGA_API", detalhes=nova["protocolo"], request=request)
         return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "bloco": nova["bloco"]}
+        
 @app.post("/api/retiradas")
 async def api_retiradas_compat(payload: dict, request: Request = None, api_key: dict = Depends(verificar_api_key)):
     dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
@@ -1407,21 +1408,32 @@ async def api_retiradas_compat(payload: dict, request: Request = None, api_key: 
     if cond_payload:
         check_api_key_condominio(request, cond_payload)
     achado = None
-    nova_lista = []
     for item in dados.get("lista",[]):
         if str(item.get("codigo_retirada"))==codigo or str(item.get("codigo"))==codigo or str(item.get("qr_code"))==codigo:
             achado = item
-        else:
-            nova_lista.append(item)
+            break
     if achado:
         # PASSO C - Trava pelo condomínio real da entrega encontrada
         check_api_key_condominio(request, str(achado.get("condominio_id","")))
-        achado["qr_valido"] = False
-        dados["lista"] = nova_lista
-        dados["historico"].append(achado)
+        # ALTERADO - NÃO tira da lista aqui mais, só joga na fila
+        # Quem tira é o ESP32 no /confirmar
+        if achado.get("status") == "AGUARDANDO_CONFIRMACAO_PORTA":
+            raise HTTPException(status_code=409, detail="Retirada já em andamento, aguarde confirmação da porta")
+        achado["status"] = "AGUARDANDO_CONFIRMACAO_PORTA"
+        nonce = f"RET-API-{achado.get('condominio_id')}-{achado.get('box')}-{int(time.time())}-{secrets.token_hex(3).upper()}"
+        achado["nonce_retirada"] = nonce
+        _FILA_ABERTURA.append({
+            "box": str(achado.get("box")).zfill(2),
+            "condominio_id": str(achado.get("condominio_id")),
+            "nonce": nonce,
+            "origem": "RETIRADA_API",
+            "lado": "V",
+            "acao": "RETIRADA",
+            "criado_em": now_brt().isoformat(),
+        })
         save_json(ARQ_DADOS, dados)
-        registrar_auditoria("RETIRADA_API", detalhes=codigo[:3]+"***", request=request)
-        return {"ok": True, "box": achado["box"]}
+        registrar_auditoria("RETIRADA_API_SOLICITADA", detalhes=f"Box {achado.get('box')} Nonce {nonce}", request=request)
+        return {"ok": True, "box": achado["box"], "nonce": nonce, "aguardando_confirmacao": True}
     raise HTTPException(404, "Código não encontrado")
 
 def get_app_users():
