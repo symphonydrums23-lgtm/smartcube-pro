@@ -46,10 +46,9 @@ body{background:#0a0a0a;height:100vh;width:100vw;display:flex;flex-direction:col
 </div>
 
 <script>
-// ETAPA 1.4 - localStorage guarda SÓ o token do tablet, nunca o condomínio
-function getTabletToken(){ return localStorage.getItem('tablet_token') || ''; }
+function getTabletToken(){ return sessionStorage.getItem('tablet_token') || localStorage.getItem('tablet_token') || ''; }
+(function(){ let t=localStorage.getItem('tablet_token'); if(t){ sessionStorage.setItem('tablet_token', t); localStorage.removeItem('tablet_token'); } })();
 
-// MARQUINHOS - valida content-type antes de .json() - se voltar HTML, não quebra
 async function safeJson(r){
   const ct = r.headers.get('content-type') || '';
   if(!ct.includes('application/json')) return null;
@@ -61,7 +60,7 @@ async function carregarInfoTablet(){
   const label = document.getElementById('armLabel');
   const btnVoltar = document.getElementById('btnVoltar');
   if(!token){
-    label.innerText = 'TABLET NÃO CONFIGURADO - SEGURE A LOGO 4s';
+    label.textContent = 'TABLET NÃO CONFIGURADO - SEGURE A LOGO 4s';
     btnVoltar.style.display = 'block';
     return;
   }
@@ -70,20 +69,19 @@ async function carregarInfoTablet(){
     if(!r.ok) throw new Error('token invalido');
     let d = await safeJson(r);
     if(!d) throw new Error('resposta invalida');
-    label.innerText = (d.codigo_armario || 'ARM') + ' • ' + (d.condominio_nome || '');
+    label.textContent = (d.codigo_armario || 'ARM') + ' • ' + (d.condominio_nome || '');
     btnVoltar.style.display = 'none';
     let btnDep = document.getElementById('btnDeposito');
     if(d.dupla_face || d.is_dupla_face || d.duplaFace){ btnDep.style.display = 'flex'; } else { btnDep.style.display = 'none'; }
     sessionStorage.setItem('condominio_nome_exibir', d.condominio_nome || '');
   }catch(e){
     console.error('[SmartCube] carregarInfoTablet', e);
-    label.innerText = 'TABLET NÃO CONFIGURADO - SEGURE A LOGO 4s';
+    label.textContent = 'TABLET NÃO CONFIGURADO - SEGURE A LOGO 4s';
     btnVoltar.style.display = 'block';
   }
 }
 carregarInfoTablet();
 
-// NAVEGACAO - addEventListener (Marquinhos) - mesmas rotas de antes
 document.getElementById('btnEntregar').addEventListener('click', ()=>{ location.href='/entrega'; });
 document.getElementById('btnReceber').addEventListener('click', ()=>{ location.href='/retirada'; });
 document.getElementById('btnDeposito').addEventListener('click', ()=>{ location.href='/deposito-interno'; });
@@ -91,7 +89,6 @@ document.getElementById('btnVoltar').addEventListener('click', ()=>{ location.hr
 document.getElementById('btnTravar').addEventListener('click', travarArmario);
 document.getElementById('btnCancelarSetup').addEventListener('click', fecharSetup);
 
-// SETUP - SEGURA LOGO 4s
 let pressTimer;
 const logo = document.getElementById('logo');
 logo.addEventListener('touchstart', ()=>{ pressTimer = setTimeout(abrirSetup, 4000); });
@@ -102,14 +99,17 @@ logo.addEventListener('mouseup', ()=>{ clearTimeout(pressTimer); });
 async function abrirSetup(){
   document.getElementById('setupOverlay').style.display='flex';
   try{
-    let r = await fetch('/api/condominios');
+    // CORRIGIDO: /api/condominios sem auth listava TODOS os condomínios pra qualquer um
+    // Agora usa endpoint de setup que exige login admin (cookie httponly). Se der 401, manda pro login.
+    let r = await fetch('/api/tablet/setup-condominios', { credentials: 'include' });
+    if(r.status===401){ alert('Faça login de admin antes de travar o tablet.'); location.href='/login'; return; }
     if(r.ok){
       let conds = await safeJson(r);
       if(!conds) return;
       let sel = document.getElementById('selConds');
       sel.innerHTML = '';
       conds.forEach(c=>{
-        if(c.id === '1') return;
+        if(c.id === '1' || c.id === 1) return;
         let opt = document.createElement('option');
         opt.value = c.id;
         opt.textContent = (c.codigo_armario||'ARM')+' - '+c.nome;
@@ -124,17 +124,21 @@ async function travarArmario(){
   let sel = document.getElementById('selConds');
   let condId = sel.value;
   if(!condId) return;
+  // CORRIGIDO: não deixa travar 2x sem confirmar - antes qualquer toque travava de novo e trocava o condomínio do tablet
+  if(getTabletToken() && !confirm('Tablet já travado. Trocar de condomínio?')) return;
   try{
     let r = await fetch('/api/tablet/registrar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ condominio_id: condId, tablet_id: 'tablet-' + condId })
+      credentials: 'include',
+      // CORRIGIDO: tablet_id previsível 'tablet-'+condId -> agora aleatório, antes qualquer um adivinhava e clonava tablet
+      body: JSON.stringify({ condominio_id: condId, tablet_id: 'tablet-' + condId + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8) })
     });
     if(r.status === 401){ alert('Faça login de admin antes de travar o tablet.'); location.href = '/login'; return; }
     if(!r.ok) throw new Error('falha registrar');
     let d = await safeJson(r);
     if(!d || !d.tablet_token) throw new Error('sem token');
-    localStorage.setItem('tablet_token', d.tablet_token);
+    sessionStorage.setItem('tablet_token', d.tablet_token);
     alert('Travado! Tablet reiniciando travado.');
     location.reload();
   }catch(e){
@@ -143,34 +147,22 @@ async function travarArmario(){
   }
 }
 
-// IA PACK - SILENCIOSA
-async function iaTabletBackground(){
-  try{
-    let token = getTabletToken();
-    if(!token) return;
-    let r = await fetch('/api/tablet/info', { headers: { 'X-Tablet-Token': token } });
-    if(!r.ok) return;
-    let d = await safeJson(r);
-    if(!d) return;
-    let r2 = await fetch('/api/ia/lotacao-24h?condominio='+encodeURIComponent(d.condominio_id));
-    if(!r2.ok) return;
-    let ia = await safeJson(r2);
-    if(!ia) return;
-    console.log('[IA Tablet] Cond:', d.condominio_id, 'Previsao:', ia.previsao_percent+'%');
-  }catch(e){ console.error('[SmartCube] iaTabletBackground', e); }
-}
-iaTabletBackground();
-const iaIntervalId = setInterval(iaTabletBackground, 300000);
+// CORRIGIDO: removido iaTabletBackground() - chamava /api/ia/lotacao-24h a cada 5min sem ninguém usar
+// Isso vazava condominio_id nos logs e gastava bateria/dados do tablet. Se precisar de IA, chama só na tela que usa.
 
-// ===== PARTE 2 - 1/2/3/4 - ABRIR PORTA + OFFLINE + LOG =====
+// ===== PARTE 2 - OFFLINE + LOG =====
 function gerarNonce(){
+  // CORRIGIDO: usa crypto.randomUUID se tiver, não Date.now()+Math.random que colide e permite replay
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10);
 }
 const FILA_KEY = 'fila_offline_smartcube';
-function getFilaOffline(){ try{ return JSON.parse(localStorage.getItem(FILA_KEY) || '[]'); }catch(e){ console.error('[SmartCube] getFilaOffline', e); return []; } }
-function setFilaOffline(fila){ localStorage.setItem(FILA_KEY, JSON.stringify(fila)); }
+function getFilaOffline(){ try{ return JSON.parse(sessionStorage.getItem(FILA_KEY) || '[]'); }catch(e){ console.error('[SmartCube] getFilaOffline', e); return []; } }
+function setFilaOffline(fila){ sessionStorage.setItem(FILA_KEY, JSON.stringify(fila)); }
 function enfileirarOffline(dados){
   const fila = getFilaOffline();
+  // CORRIGIDO: guarda o nonce original, não gera novo na hora de sincronizar
+  // Antes cada tentativa gerava nonce novo, então backend nunca detectava replay e abria a porta 10x
   fila.push({ ...dados, _offline_em: new Date().toISOString() });
   setFilaOffline(fila);
   alert('Sem internet! Comando salvo, vai sincronizar quando voltar.');
@@ -185,9 +177,12 @@ async function sincronizarFilaOffline(){
       const r = await fetch('/api/tablet/abrir-porta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Tablet-Token': getTabletToken() },
-        body: JSON.stringify({ box: item.box, lado: item.lado, acao: item.acao, nonce: gerarNonce() })
+        body: JSON.stringify({ box: item.box, lado: item.lado, acao: item.acao, nonce: item.nonce })
       });
-      if(!r.ok) restantes.push(item);
+      if(!r.ok){
+        // CORRIGIDO: 409 = já usado, não re-tenta - antes ficava re-tentando e re-abrindo
+        if(r.status!==409) restantes.push(item);
+      }
     }catch(e){ console.error('[SmartCube] sincronizarFilaOffline', e); restantes.push(item); }
   }
   setFilaOffline(restantes);
@@ -219,23 +214,16 @@ async function abrirPorta(box, lado, acao){
       headers: { 'Content-Type': 'application/json', 'X-Tablet-Token': token },
       body: JSON.stringify({ box: box, lado: lado, evento: 'ABERTA', motivo: 'COMANDO' })
     }).catch((e)=>{ console.error('[SmartCube] porta-evento ABERTA', e); });
-    setTimeout(()=>{
-      fetch('/api/tablet/porta-evento', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Tablet-Token': token },
-        body: JSON.stringify({ box: box, lado: lado, evento: 'FECHADA', motivo: 'TIMEOUT' })
-      }).catch((e)=>{ console.error('[SmartCube] porta-evento FECHADA', e); });
-    }, 15000);
-    alert('Porta ' + box + ' lado ' + lado + ' ABERTA por 15s');
+    // CORRIGIDO: removido setTimeout que mandava FECHADA fake depois de 15s
+    // Antes backend achava que porta fechou, mesmo morador deixando aberta. FECHADA só vem do sensor real.
+    alert('Porta ' + box + ' lado ' + lado + ' ABERTA');
   }catch(e){
     console.error('[SmartCube] abrirPorta', e);
     enfileirarOffline(payload);
   }
 }
 
-// MARQUINHOS - limpa intervals no unload - Kiosk 24h sem vazar memoria
 window.addEventListener('beforeunload', ()=>{
-  clearInterval(iaIntervalId);
   clearInterval(filaIntervalId);
 });
 </script>
