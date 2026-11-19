@@ -1695,25 +1695,31 @@ def esp32_confirmar(payload: dict, request: Request, _esp: bool = Depends(verifi
             # Marca nonce como usado por 10 minutos
             _NONCES_USADOS.add(nonce)
             _NONCES_EXPIRACAO[nonce] = agora_ts + 600
-            # Agora sim marca como retirado
-            dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
-            nova_lista = []
-            achado = None
-            for item in dados.get("lista", []):
-                if str(item.get("condominio_id")) == str(c["condominio_id"]) and str(item.get("box")).zfill(2) == str(c["box"]).zfill(2) and not achado:
-                    achado = item
-                else:
-                    nova_lista.append(item)
-            if achado:
-                achado["data_retirada"] = now_brt().strftime("%d/%m/%Y")
-                achado["hora_retirada"] = now_brt().strftime("%H:%M")
-                achado["retirada_por"] = "ADMIN_REMOTO_ESP32"
-                achado["prova_fisica"] = {"porta_aberta": porta_aberta, "sensor_abertura": sensor, "reed": reed}
-                dados["lista"] = nova_lista
-                dados["historico"].append(achado)
-                save_json(ARQ_DADOS, dados)
-            registrar_auditoria("ABERTURA_ESP32_CONFIRMADA", detalhes=f"Box {c['box']} Cond {c['condominio_id']} Nonce {nonce} Prova {porta_aberta}/{sensor}/{reed}", condominio_id=c["condominio_id"], request=request)
-            return {"ok": True, "box": c["box"]}
+
+            acao_cmd = str(c.get("acao") or "").upper()
+            # CORRIGIDO ETAPA 1: só RETIRADA tira da lista
+            # ENTREGA / MANUTENCAO / ADMIN = só abre, registra auditoria, NÃO mexe na lista
+            if acao_cmd == "RETIRADA":
+                dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+                nova_lista = []
+                achado = None
+                for item in dados.get("lista", []):
+                    if str(item.get("condominio_id")) == str(c["condominio_id"]) and str(item.get("box")).zfill(2) == str(c["box"]).zfill(2) and not achado:
+                        achado = item
+                    else:
+                        nova_lista.append(item)
+                if achado:
+                    achado["data_retirada"] = now_brt().strftime("%d/%m/%Y")
+                    achado["hora_retirada"] = now_brt().strftime("%H:%M")
+                    achado["retirada_por"] = "ESP32_RETIRADA"
+                    achado["status"] = "RETIRADO"
+                    achado["prova_fisica"] = {"porta_aberta": porta_aberta, "sensor_abertura": sensor, "reed": reed}
+                    dados["lista"] = nova_lista
+                    dados["historico"].append(achado)
+                    save_json(ARQ_DADOS, dados)
+
+            registrar_auditoria("ABERTURA_ESP32_CONFIRMADA", detalhes=f"Box {c['box']} Cond {c['condominio_id']} Acao {acao_cmd} Nonce {nonce} Prova {porta_aberta}/{sensor}/{reed}", condominio_id=c["condominio_id"], request=request)
+            return {"ok": True, "box": c["box"], "acao": acao_cmd}
     raise HTTPException(404, "Nonce não encontrado ou expirado")
 
 @app.post("/api/condfy/sync")
