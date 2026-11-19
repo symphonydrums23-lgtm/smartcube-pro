@@ -15,6 +15,7 @@ body{display:flex;min-height:100vh}
 .btn:disabled{opacity:.6;cursor:not-allowed}
 .err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;padding:10px;border-radius:8px;font-size:12px;margin-top:12px;display:none}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:768px){.left{display:none}.right{padding:20px}}
 </style>
 </head>
 <body>
@@ -41,10 +42,10 @@ const API_BASE = window.location.origin;
 function showErr(msg){
   const el = document.getElementById('err');
   el.style.display='block';
-  el.innerText = msg;
+  // CORRIGIDO: textContent, não innerText - padrão dos outros arquivos
+  el.textContent = msg;
 }
 
-// MARQUINHOS - valida content-type antes de .json()
 async function safeJson(r){
   const ct = r.headers.get('content-type') || '';
   if(!ct.includes('application/json')) return null;
@@ -53,13 +54,15 @@ async function safeJson(r){
 
 async function doLogin(){
   const btn = document.getElementById('btnLogin');
+  if(btn.disabled) return;
+  // CORRIGIDO: não dá trim() na senha - antes senha " 1234 " virava "1234" e login falhava / senha com espaço no fim nunca entrava
   const u = document.getElementById('user').value.trim();
-  const p = document.getElementById('pass').value.trim();
-  
+  const p = document.getElementById('pass').value;
+
   if(!u || !p){ showErr('Digite usuário e senha'); return; }
-  
+
   btn.disabled = true;
-  btn.innerText = 'ENTRANDO...';
+  btn.textContent = 'ENTRANDO...';
   document.getElementById('err').style.display='none';
 
   const controller = new AbortController();
@@ -74,26 +77,27 @@ async function doLogin(){
     });
     clearTimeout(timer);
     const j = await safeJson(r);
-    
+
     if(!r.ok){
-      showErr((j && j.detail) || 'Usuário ou senha inválido');
+      // CORRIGIDO: mensagem genérica, não vaza se usuário existe ou não
+      // Antes backend devolvia "usuário não encontrado" vs "senha errada" e dava pra enumerar usuários
+      showErr('Usuário ou senha inválido');
       btn.disabled = false;
-      btn.innerText = 'ENTRAR NO PAINEL →';
+      btn.textContent = 'ENTRAR NO PAINEL →';
       return;
     }
-    
+
     if(j && j.ok){
-      // FIX v5.9: não salva token no localStorage e não joga token na URL
-      // O backend já seta o cookie httponly, é só ir pro dashboard limpo
+      // CORRIGIDO: limpa senha do campo e do DOM antes de ir pro dashboard
+      document.getElementById('pass').value='';
       try { localStorage.removeItem('sc_token'); } catch(e){ console.error('[SmartCube] limpar sc_token', e); }
       try { localStorage.removeItem('sc_user'); } catch(e){ console.error('[SmartCube] limpar sc_user', e); }
-      // SEM sessionStorage sc_token - Marquinhos sugeriu, mas isso reintroduz o vazamento
-      // SEM ?token= na URL
+      try { sessionStorage.removeItem('sc_token'); } catch(e){}
       window.location.replace('/dashboard');
     }else{
       showErr('Erro no login');
       btn.disabled = false;
-      btn.innerText = 'ENTRAR NO PAINEL →';
+      btn.textContent = 'ENTRAR NO PAINEL →';
     }
   }catch(e){
     clearTimeout(timer);
@@ -102,10 +106,11 @@ async function doLogin(){
       showErr('Tempo esgotado. Tente de novo.');
     } else {
       console.error('[SmartCube] doLogin', e);
-      showErr('Erro de conexão com servidor - '+e.message);
+      // CORRIGIDO: não mostra e.message pro usuário - antes mostrava "Failed to fetch" e detalhes de rede
+      showErr('Erro de conexão com servidor. Tente de novo.');
     }
     btn.disabled = false;
-    btn.innerText = 'ENTRAR NO PAINEL →';
+    btn.textContent = 'ENTRAR NO PAINEL →';
   }
 }
 
@@ -118,7 +123,6 @@ document.getElementById('pass').addEventListener('keydown', e=>{
 });
 
 (async ()=>{
-  // Auto-login: valida pelo cookie httponly, sem token no localStorage / URL
   try{
     const r = await fetch(API_BASE+'/api/auth/verificar',{ credentials: 'include' });
     if(r.ok){
