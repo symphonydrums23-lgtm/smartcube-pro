@@ -886,14 +886,14 @@ async def tablet_retirada(payload: dict, request: Request = None, tablet: dict =
         nonce = f"RET-{condominio_tablet}-{achado.get('box')}-{int(time.time())}-{secrets.token_hex(3).upper()}"
         achado["nonce_retirada"] = nonce
         _FILA_ABERTURA.append({
-        "box": str(achado.get("box")).zfill(2),
-        "condominio_id": condominio_tablet,
-        "nonce": nonce,
-        "origem": "RETIRADA_TABLET",
-        "lado": "V",
-        "acao": "RETIRADA",
-        "criado_em": now_brt().isoformat(),
-    })
+            "box": str(achado.get("box")).zfill(2),
+            "condominio_id": condominio_tablet,
+            "nonce": nonce,
+            "origem": "RETIRADA_TABLET",
+            "lado": "V",
+            "acao": "RETIRADA",
+            "criado_em": now_brt().isoformat(),
+        })
         save_json(ARQ_DADOS, dados)
         registrar_auditoria("RETIRADA_TABLET_SOLICITADA", detalhes=f"Box {achado.get('box')} Cond {condominio_tablet} Nonce {nonce} Aguardando porta", condominio_id=condominio_tablet, request=request)
         return {"ok": True, "box": achado.get("box"), "condominio_id": condominio_tablet, "nonce": nonce, "aguardando_confirmacao": True}
