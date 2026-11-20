@@ -48,6 +48,10 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 .grid-aptos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
 .btn-grid{padding:16px 0;background:#FF6A00;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:900;cursor:pointer}
 .btn-grid:active{transform:scale(.96)}
+.resumo-conf{background:#FFF7ED;border:1.5px solid #FF6A00;border-radius:14px;padding:12px 14px;margin:10px 0}
+.resumo-conf-title{font-size:9px;font-weight:900;letter-spacing:1.2px;color:#FF6A00;text-align:center;margin-bottom:6px}
+.resumo-conf .row{border-bottom:1px solid #FFE4CC}
+.resumo-conf .row:last-child{border:none}
 </style>
 </head>
 <body>
@@ -79,7 +83,7 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <button type="button" class="btn-sec" id="btnVoltarInicio2">VOLTAR AO INÍCIO</button>
 </div>
 
-<!-- S2 - TAMANHO -->
+<!-- S2 - TAMANHO + CONFIRMAR DADOS -->
 <div class="card step" id="s2">
 <div class="progress"><div class="dot"></div><div class="dot active"></div><div class="dot"></div></div>
 <div class="icon-circle">📏</div>
@@ -90,8 +94,17 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 <button type="button" class="size" data-tam="M" aria-label="Tamanho médio"><b>M</b><small>MÉDIO</small></button>
 <button type="button" class="size" data-tam="G" aria-label="Tamanho grande"><b>G</b><small>GRANDE</small></button>
 </div>
+
+<!-- NOVO - RESUMO PRA CONFIRMAR -->
+<div class="resumo-conf" id="resumoConf" style="display:none">
+<div class="resumo-conf-title">CONFIRA OS DADOS</div>
+<div class="row"><span>Bloco</span><span id="confBloco">-</span></div>
+<div class="row"><span>Apartamento</span><span id="confApto">-</span></div>
+<div class="row"><span>Tamanho</span><span id="confTam" style="color:#FF6A00">-</span></div>
+</div>
+
 <div class="status-box err" id="semEspacoBox" style="display:none" role="alert" aria-live="assertive"><b id="semEspacoTxt">SEM ESPAÇO</b></div>
-<button type="button" class="btn-primary" id="btnConf" disabled>ABRIR BOX →</button>
+<button type="button" class="btn-primary" id="btnConf" disabled>CONFIRMAR DADOS →</button>
 <button type="button" class="btn-sec" id="btnVoltarDest">VOLTAR</button>
 </div>
 
@@ -119,9 +132,7 @@ body::before{content:'';position:fixed;top:-20%;left:50%;transform:translateX(-5
 
 </div>
 <script>
-// CORRIGIDO: sessionStorage, não localStorage - antes token do tablet ficava pra sempre, desligava e continuava travado
 function getTabletToken(){ return sessionStorage.getItem('tablet_token') || localStorage.getItem('tablet_token') || ''; }
-// CORRIGIDO: migra token antigo pra sessionStorage e apaga do localStorage na primeira carga
 (function(){ let t=localStorage.getItem('tablet_token'); if(t){ sessionStorage.setItem('tablet_token', t); localStorage.removeItem('tablet_token'); } })();
 let tabletInfo = null;
 let blocoSel = '';
@@ -168,8 +179,6 @@ async function carregarDestino(){
   else listaAptos = [];
 
   const semBloco = tabletInfo.sem_bloco || tabletInfo.tem_bloco===false || tabletInfo.possui_bloco===false;
-  // CORRIGIDO: fallback só se backend não mandou nada E não é sem_bloco - antes inventava A-H e 101-404 em todo condomínio
-  // Se o backend mandar lista vazia de propósito, não inventa mais
   if(!listaBlocos.length && !semBloco && !tabletInfo.blocos && !tabletInfo.lista_blocos){
     listaBlocos = ['A','B','C','D','E','F','G','H'];
   }
@@ -240,6 +249,13 @@ function irTamanho(){
   document.getElementById('destTxt').textContent = bTxt + `Apto ${aptoSel}`;
   document.getElementById('bTxt').textContent = blocoSel || '-';
   document.getElementById('aTxt').textContent = aptoSel;
+  // Reseta tamanho / resumo ao entrar na tela
+  tam = '';
+  document.querySelectorAll('.size').forEach(s=>s.classList.remove('active'));
+  document.getElementById('resumoConf').style.display = 'none';
+  document.getElementById('semEspacoBox').style.display = 'none';
+  document.getElementById('btnConf').disabled = true;
+  document.getElementById('btnConf').innerText = 'CONFIRMAR DADOS →';
   document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
   document.getElementById('s2').classList.add('active');
 }
@@ -252,9 +268,15 @@ function sel(t,el){
   tam=t;
   document.querySelectorAll('.size').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('btnConf').disabled=false;
   document.getElementById('semEspacoBox').style.display='none';
   document.getElementById('tTxt').textContent=t;
+  // NOVO - mostra resumo pra confirmar
+  document.getElementById('confBloco').textContent = blocoSel || '-';
+  document.getElementById('confApto').textContent = aptoSel || '-';
+  document.getElementById('confTam').textContent = t + (t==='P' ? ' - PEQUENO' : t==='M' ? ' - MÉDIO' : ' - GRANDE');
+  document.getElementById('resumoConf').style.display='block';
+  document.getElementById('btnConf').disabled=false;
+  document.getElementById('btnConf').innerText='CONFIRMAR DADOS →';
 }
 
 // ===== OFFLINE - Fila entrega =====
@@ -288,13 +310,13 @@ async function tentarSyncEntrega(){
 window.addEventListener('online', tentarSyncEntrega);
 setInterval(tentarSyncEntrega, 30000);
 tentarSyncEntrega();
-  
+
 async function confirmar(){
   let btn = document.getElementById('btnConf');
   if(!tam || !aptoSel){ alert('Escolha o tamanho e o apartamento'); return; }
   if(listaBlocos.length>0 && !/^[A-Z0-9]{1,4}$/.test(blocoSel)){ alert('Bloco inválido'); return; }
   if(!/^\d{1,5}$/.test(aptoSel)){ alert('Apartamento inválido'); return; }
-  btn.disabled = true; btn.innerText = 'ABRINDO...';
+  btn.disabled = true; btn.innerText = 'CONFIRMANDO...';
   let bloco = blocoSel; let apto = aptoSel;
   const protocoloOffline = gerarProtocoloOffline();
   const controller = new AbortController();
@@ -306,6 +328,7 @@ async function confirmar(){
       signal: controller.signal,
       headers:{'Content-Type':'application/json', 'X-Tablet-Token': token},
       body: JSON.stringify({ bloco: bloco, apartamento: apto, tamanho: tam, protocolo: protocoloOffline })
+    });
     clearTimeout(timer);
     let d = await safeJson(resp);
     if(!resp.ok){
@@ -314,7 +337,7 @@ async function confirmar(){
         let tipo = msg.split('_').pop() || tam;
         document.getElementById('semEspacoBox').style.display='block';
         document.getElementById('semEspacoTxt').textContent = `🔴 SEM ESPAÇO PARA ${tipo} - Todas as portas ${tipo} estão ocupadas. Tente contato com o síndico.`;
-        btn.disabled = false; btn.innerText = 'ABRIR BOX →'; return;
+        btn.disabled = false; btn.innerText = 'CONFIRMAR DADOS →'; return;
       } else { throw new Error(msg); }
     }
     if(!d || !d.box){
@@ -326,8 +349,6 @@ async function confirmar(){
       console.error('[SmartCube] confirmar entrega sem protocolo', d);
       throw new Error('Protocolo não informado pelo servidor. Nenhum box foi aberto.');
     }
-    // CORRIGIDO: data/hora do backend, não do tablet - antes tablet com relógio errado gerava comprovante com data errada
-    // Backend deve mandar d.data e d.hora, se não mandar usa agora como fallback
     let dataStr = d.data || new Date().toLocaleDateString('pt-BR');
     let horaStr = d.hora || new Date().toLocaleTimeString('pt-BR').slice(0,5);
     document.getElementById('protocolo').textContent = protocoloReal;
@@ -337,15 +358,14 @@ async function confirmar(){
     document.getElementById('boxStatus').textContent = `🔓 BOX ${d.box} ABERTO (${tam}) - COLOQUE A ENCOMENDA E FECHE A PORTA`;
     document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
     document.getElementById('s3').classList.add('active');
-    }catch(err){
+  }catch(err){
     clearTimeout(timer);
     console.error('[SmartCube] confirmar entrega', err);
-    // OFFLINE: sem internet ou timeout, salva e não perde a entrega
     let fila = getFilaEntrega();
     fila.push({ tipo: 'ENTREGA', protocolo: protocoloOffline, bloco: blocoSel, apartamento: aptoSel, tamanho: tam, created_at: new Date().toISOString() });
     setFilaEntrega(fila);
     alert('Sem internet! Entrega salva, vai sincronizar sozinha quando voltar.\nProtocolo: ' + protocoloOffline);
-    btn.disabled = false; btn.innerText = 'ABRIR BOX →';
+    btn.disabled = false; btn.innerText = 'CONFIRMAR DADOS →';
   }
 }
 document.getElementById('btnVoltarInicio1').addEventListener('click', ()=>{ location.href='/tablet'; });
