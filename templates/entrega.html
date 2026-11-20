@@ -256,6 +256,39 @@ function sel(t,el){
   document.getElementById('semEspacoBox').style.display='none';
   document.getElementById('tTxt').textContent=t;
 }
+
+// ===== OFFLINE - Fila entrega =====
+const FILA_ENTREGA_KEY = 'fila_offline_smartcube';
+function getFilaEntrega(){ try{ return JSON.parse(localStorage.getItem(FILA_ENTREGA_KEY) || '[]'); }catch(e){ return []; } }
+function setFilaEntrega(f){ localStorage.setItem(FILA_ENTREGA_KEY, JSON.stringify(f)); }
+
+function gerarProtocoloOffline(){
+  if(window.crypto && crypto.randomUUID) return 'SC-OFF-' + crypto.randomUUID().slice(0,8).toUpperCase();
+  return 'SC-OFF-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2,6).toUpperCase();
+}
+
+async function tentarSyncEntrega(){
+  let fila = getFilaEntrega();
+  if(!fila.length) return;
+  if(!navigator.onLine) return;
+  try{
+    let token = getTabletToken();
+    let r = await fetch('/api/tablet/sync', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-Tablet-Token': token},
+      body: JSON.stringify({ itens: fila })
+    });
+    if(r.ok){
+      let d = await safeJson(r);
+      console.log('[SmartCube] Sync offline OK', d);
+      setFilaEntrega([]);
+    }
+  }catch(e){ console.log('[SmartCube] Ainda sem internet, mantém na fila'); }
+}
+window.addEventListener('online', tentarSyncEntrega);
+setInterval(tentarSyncEntrega, 30000);
+tentarSyncEntrega();
+  
 async function confirmar(){
   let btn = document.getElementById('btnConf');
   if(!tam || !aptoSel){ alert('Escolha o tamanho e o apartamento'); return; }
