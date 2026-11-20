@@ -844,19 +844,17 @@ def tablet_entrega(payload: dict, request: Request = None, tablet: dict = Depend
 
         # PATCH 29 - Entrega agora gera comando pro ESP32, igual a retirada faz
         nonce_entrega = f"ENT-{condominio_id}-{nova['box']}-{int(time.time())}-{secrets.token_hex(3).upper()}"
-                 _FILA_ABERTURA.append({
+        registrar_auditoria("ENTREGA_TABLET", detalhes=f"Box {nova['box']} Bloco:{nova['bloco']} Apto:{nova['apartamento']} {tamanho_solicitado}->{nova['tamanho_real']} Prot {nova['protocolo']} Cond {condominio_id} Nonce {nonce_entrega}", condominio_id=condominio_id, request=request)
+        _FILA_ABERTURA.append({
             "box": item["box"],
             "condominio_id": condominio_id,
-            "nonce": nonce_retirada,
-            "origem": "RETIRADA_TABLET",
-            "lado": "T" if (cond_config and cond_config.get("dupla_face")) else "F",
-            "acao": "RETIRADA",
+            "nonce": nonce_entrega,
+            "origem": "ENTREGA_TABLET",
+            "lado": "F",
+            "acao": "ENTREGA",
             "criado_em": now_brt().isoformat(),
         })
-        registrar_auditoria("ENTREGA_TABLET", detalhes=f"Box {nova['box']} Bloco:{nova['bloco']} Apto:{nova['apartamento']} {tamanho_solicitado}->{nova['tamanho_real']} Prot {nova['protocolo']} Cond {condominio_id} Nonce {nonce_entrega}", condominio_id=condominio_id, request=request)
         return {"ok": True, "protocolo": nova["protocolo"], "box": nova["box"], "codigo": codigo_morador, "qr_code": qr_morador, "tamanho_solicitado": tamanho_solicitado, "tamanho_real": nova["tamanho_real"], "upgrade": foi_upgrade, "bloco": nova["bloco"], "apartamento": nova["apartamento"], "nonce": nonce_entrega}
-
-@app.post("/api/tablet/retirada")
 async def tablet_retirada(payload: dict, request: Request = None, tablet: dict = Depends(verificar_tablet_token)):
     with FILE_LOCK:
         dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
