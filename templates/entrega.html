@@ -305,8 +305,7 @@ async function confirmar(){
       method:'POST',
       signal: controller.signal,
       headers:{'Content-Type':'application/json', 'X-Tablet-Token': token},
-      body: JSON.stringify({ bloco: bloco, apartamento: apto, tamanho: tam })
-    });
+      body: JSON.stringify({ bloco: bloco, apartamento: apto, tamanho: tam, protocolo: protocoloOffline })
     clearTimeout(timer);
     let d = await safeJson(resp);
     if(!resp.ok){
