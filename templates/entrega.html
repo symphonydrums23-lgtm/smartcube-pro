@@ -337,11 +337,14 @@ async function confirmar(){
     document.getElementById('boxStatus').textContent = `🔓 BOX ${d.box} ABERTO (${tam}) - COLOQUE A ENCOMENDA E FECHE A PORTA`;
     document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
     document.getElementById('s3').classList.add('active');
-  }catch(err){
+    }catch(err){
     clearTimeout(timer);
     console.error('[SmartCube] confirmar entrega', err);
-    if(err && err.name === 'AbortError') alert('Tempo esgotado. Tente de novo.');
-    else alert('Erro: '+err.message);
+    // OFFLINE: sem internet ou timeout, salva e não perde a entrega
+    let fila = getFilaEntrega();
+    fila.push({ tipo: 'ENTREGA', protocolo: protocoloOffline, bloco: blocoSel, apartamento: aptoSel, tamanho: tam, created_at: new Date().toISOString() });
+    setFilaEntrega(fila);
+    alert('Sem internet! Entrega salva, vai sincronizar sozinha quando voltar.\nProtocolo: ' + protocoloOffline);
     btn.disabled = false; btn.innerText = 'ABRIR BOX →';
   }
 }
