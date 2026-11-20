@@ -1885,6 +1885,94 @@ def tablet_heartbeat(payload: dict, request: Request, tablet: dict = Depends(ver
     }
     save_json(ARQ_TABLET_STATUS, status)
     return {"ok": True}
+    
+@app.post("/api/tablet/sync")
+def tablet_sync(payload: dict, request: Request, tablet: dict = Depends(verificar_tablet_token)):
+    # 9.2 + 9.3 - Sync offline com idempotência
+    condominio_id = str(request.state.tablet_condominio_id)
+    itens = payload.get("itens") or payload.get("fila") or []
+    if not isinstance(itens, list):
+        raise HTTPException(400, "Envie itens como lista")
+
+    with FILE_LOCK:
+        dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
+        resultados = []
+
+        for item in itens:
+            tipo = str(item.get("tipo") or item.get("acao") or "").upper()  # ENTREGA ou RETIRADA
+            protocolo = str(item.get("protocolo") or item.get("nonce") or "").strip()
+            if not protocolo:
+                resultados.append({"ok": False, "erro": "Sem protocolo/nonce"})
+                continue
+
+            # Idempotência: já existe? Não duplica, só retorna o que já tem
+            ja_existe = None
+            for e in dados.get("lista", []) + dados.get("historico", []):
+                if str(e.get("protocolo")) == protocolo or str(e.get("nonce_retirada")) == protocolo:
+                    ja_existe = e
+                    break
+            if ja_existe:
+                resultados.append({"ok": True, "duplicado": True, "protocolo": protocolo, "box": ja_existe.get("box")})
+                continue
+
+            if tipo == "ENTREGA":
+                # Reusa a mesma lógica de entrega, mas com protocolo do tablet
+                cond_config = get_cond_config(condominio_id)
+                tamanho = str(item.get("tamanho", "P")).upper()
+                box_escolhido, tamanho_final, foi_upgrade = get_box_livre(dados, condominio_id, tamanho, cond_config)
+                if not box_escolhido:
+                    resultados.append({"ok": False, "protocolo": protocolo, "erro": f"SEM_ESPACO_{tamanho}"})
+                    continue
+                codigo_morador = f"{secrets.randbelow(900000)+100000:06d}"
+                qr_morador = f"SC-RET-{secrets.token_hex(6).upper()}"
+                nova = {
+                    "box": str(box_escolhido).zfill(2),
+                    "condominio_id": condominio_id,
+                    "bloco": item.get("bloco",""),
+                    "apartamento": item.get("apartamento") or item.get("apto",""),
+                    "codigo": codigo_morador,
+                    "codigo_retirada": codigo_morador,
+                    "qr_code": qr_morador,
+                    "protocolo": protocolo,
+                    "data": now_brt().strftime("%d/%m/%Y"),
+                    "hora": now_brt().strftime("%H:%M"),
+                    "created_at": item.get("created_at") or now_brt().isoformat(),
+                    "expira_em": (now_brt()+timedelta(hours=72)).isoformat(),
+                    "origem": "SYNC_OFFLINE",
+                    "tamanho_real": tamanho_final,
+                }
+                dados["lista"].append(nova)
+                resultados.append({"ok": True, "protocolo": protocolo, "box": nova["box"], "codigo": codigo_morador, "qr_code": qr_morador})
+
+            elif tipo == "RETIRADA":
+                codigo = str(item.get("codigo") or "").strip()
+                achado = None
+                for e in dados.get("lista", []):
+                    if str(e.get("condominio_id")) == condominio_id and (str(e.get("codigo_retirada")) == codigo or str(e.get("codigo")) == codigo or str(e.get("qr_code")) == codigo):
+                        achado = e
+                        break
+                if not achado:
+                    resultados.append({"ok": False, "protocolo": protocolo, "erro": "Código não encontrado"})
+                    continue
+                achado["status"] = "AGUARDANDO_CONFIRMACAO_PORTA"
+                achado["nonce_retirada"] = protocolo
+                _FILA_ABERTURA.append({
+                    "box": str(achado.get("box")).zfill(2),
+                    "condominio_id": condominio_id,
+                    "nonce": protocolo,
+                    "origem": "RETIRADA_SYNC_OFFLINE",
+                    "lado": "V",
+                    "acao": "RETIRADA",
+                    "criado_em": now_brt().isoformat(),
+                })
+                resultados.append({"ok": True, "protocolo": protocolo, "box": achado.get("box")})
+            else:
+                resultados.append({"ok": False, "protocolo": protocolo, "erro": "Tipo inválido, use ENTREGA ou RETIRADA"})
+
+        save_json(ARQ_DADOS, dados)
+        registrar_auditoria("TABLET_SYNC_OFFLINE", detalhes=f"Sync {len(itens)} itens Cond {condominio_id}", condominio_id=condominio_id, request=request)
+        return {"ok": True, "sincronizados": len(resultados), "resultados": resultados}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5000)
