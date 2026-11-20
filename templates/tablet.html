@@ -157,7 +157,8 @@ function gerarNonce(){
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10);
 }
 const FILA_KEY = 'fila_offline_smartcube';
-function getFilaOffline(){ try{ return JSON.parse(sessionStorage.getItem(FILA_KEY) || '[]'); }catch(e){ console.error('[SmartCube] getFilaOffline', e); return []; } }
+function getFilaOffline(){ try{ return JSON.parse(localStorage.getItem(FILA_KEY) || '[]'); }catch(e){ return []; } }
+function setFilaOffline(fila){ localStorage.setItem(FILA_KEY, JSON.stringify(fila)); }
 function setFilaOffline(fila){ sessionStorage.setItem(FILA_KEY, JSON.stringify(fila)); }
 function enfileirarOffline(dados){
   const fila = getFilaOffline();
