@@ -796,8 +796,9 @@ async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = 
         if not box_escolhido:
             raise HTTPException(status_code=409, detail=f"SEM_ESPACO_{tamanho_solicitado}")
         # TRAVA DUPLA FACE: 05 já ocupado = 05 inteiro ocupado, não só F ou V
-        box_escolhido = normalizar_box(box_escolhido)
+               box_escolhido = normalizar_box(box_escolhido)
         ocupado = any(str(x.get("condominio_id"))==condominio_id and normalizar_box(x.get("box"))==box_escolhido for x in dados.get("lista",[]))
+        if ocupado:
             raise HTTPException(status_code=409, detail=f"Box {box_escolhido} já ocupado. Aguarde retirada pela porta interna.")
         existentes_cod = set(str(x.get("codigo_retirada","")) for x in dados.get("lista",[]))
         existentes_qr = set(str(x.get("qr_code","")) for x in dados.get("lista",[]))
