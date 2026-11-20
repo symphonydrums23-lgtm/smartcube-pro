@@ -1029,7 +1029,7 @@ def criar_cond(payload: dict, request: Request, token: str = Depends(requer_auth
         qtd_p_lado, qtd_m_lado, qtd_g_lado = qtd_p, qtd_m, qtd_g
         label_dupla = f"{total_util} úteis + 1 Tablet = {total_fisico} | Blocos: {', '.join(blocos) if blocos else 'Único'}"
 
-    boxes_lista = gerar_boxes_lista(total_util_lado, qtd_p_lado, qtd_m_lado, qtd_g_lado, G_boxes)
+    boxes_lista = gerar_boxes_lista(total_util_lado, qtd_p_lado, qtd_m_lado, qtd_g_lado, G_boxes, dupla_face=dupla_face)
 
     novo = {
         "id": str(uuid.uuid4())[:8],
