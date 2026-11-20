@@ -179,6 +179,8 @@ def tablet_proxima_abertura(request: Request, tablet: dict = Depends(verificar_t
     # Só o ESP32 executa e consome via /api/esp32/confirmar
     condominio_id = str(request.state.tablet_condominio_id)
     cmds = [c for c in list(_FILA_ABERTURA) if str(c.get("condominio_id")) == condominio_id]
+        agora_ts = time.time()
+    _FILA_ABERTURA[:] = [c for c in _FILA_ABERTURA if agora_ts - datetime.fromisoformat(c.get("criado_em", now_brt().isoformat())).timestamp() < 60]
     if not cmds:
         return {"tem_comando": False}
     item = cmds[0]
