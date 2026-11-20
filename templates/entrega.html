@@ -296,6 +296,7 @@ async function confirmar(){
   if(!/^\d{1,5}$/.test(aptoSel)){ alert('Apartamento inválido'); return; }
   btn.disabled = true; btn.innerText = 'ABRINDO...';
   let bloco = blocoSel; let apto = aptoSel;
+  const protocoloOffline = gerarProtocoloOffline();
   const controller = new AbortController();
   const timer = setTimeout(()=>controller.abort(), 10000);
   try{
