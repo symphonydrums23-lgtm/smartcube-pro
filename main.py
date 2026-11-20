@@ -839,7 +839,7 @@ def tablet_entrega(payload: dict, request: Request = None, tablet: dict = Depend
                     break
         else:
             nova["tamanho_real"]=tamanho_solicitado
-                dados["lista"].append(nova)
+        dados["lista"].append(nova)
         save_json(ARQ_DADOS, dados)
 
         # PATCH 29 - Entrega agora gera comando pro ESP32, igual a retirada faz
