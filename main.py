@@ -1820,28 +1820,45 @@ async def post_whitelabel(request: Request, token: str = Depends(requer_auth)):
     save_json(ARQ_WHITELABEL, dados)
     return {"ok": True, "msg": "Marca salva", "dados": dados}
 
+def _norm_bloco(v):
+    return str(v or "").strip().upper()
+
+def _norm_apto(v):
+    s = str(v or "").strip().upper().replace("APT", "").replace("APTO", "").replace(" ", "").replace("-", "")
+    if s.isdigit():
+        s = str(int(s))  # 001 -> 1, 012 -> 12
+    return s
+
 @app.post("/api/validar-apto")
 def validar_apto(payload: dict, request: Request, tablet: dict = Depends(verificar_tablet_token)):
-    import re
     condominio_id = str(request.state.tablet_condominio_id or "").strip()
-    bloco = str(payload.get("bloco") or "").strip().upper()
-    apto = str(payload.get("apto") or payload.get("apartamento") or "").strip().upper()
+    bloco = _norm_bloco(payload.get("bloco"))
+    apto = _norm_apto(payload.get("apto") or payload.get("apartamento"))
 
-    if not re.match(r"^[0-9]+[A-Za-z]?$|^[A-Za-z0-9\-/]+$", apto):
-        raise HTTPException(400, "Formato apto invalido. Use 12, 12A, 12B")
     if not condominio_id or condominio_id == "1":
         raise HTTPException(400, "Token do tablet sem condominio_id")
+    if not bloco or not apto:
+        raise HTTPException(400, "Informe bloco e apto")
 
     mors = load_json(ARQ_MORS, [])
     if isinstance(mors, dict):
         mors = mors.get("moradores", []) or mors.get("data", []) or []
 
-    achado = next((m for m in mors if str(m.get("condominio_id") or m.get("condominio")) == condominio_id
-                   and str(m.get("bloco","")).upper() == bloco
-                   and str(m.get("apto") or m.get("apartamento","")).upper() == apto), None)
+    achado = None
+    for m in mors:
+        # moradores.json usa "condominio", não "condominio_id"
+        cond_m = str(m.get("condominio") or m.get("condominio_id") or "")
+        if cond_m != condominio_id:
+            continue
+        if _norm_bloco(m.get("bloco")) == bloco and _norm_apto(m.get("apto") or m.get("apartamento")) == apto:
+            achado = m
+            break
+
     if not achado:
+        registrar_auditoria("VALIDAR_APTO_NEGADO", detalhes=f"Bloco {bloco} Apto {apto} não encontrado", condominio_id=condominio_id, request=request)
         raise HTTPException(404, "Morador não encontrado neste bloco/apto")
-    return {"ok": True, "apto": apto, "bloco": bloco, "morador": achado.get("nome",""), "condominio_id": condominio_id}
+
+    return {"ok": True, "valido": True, "apto": apto, "bloco": bloco, "morador": achado.get("nome", ""), "condominio_id": condominio_id}
     
 @app.get("/api/comercial/vendedores")
 def listar_vendedores(token: str = Depends(requer_auth)):
