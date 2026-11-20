@@ -783,7 +783,7 @@ def normalizar_box(box):
     return box.zfill(2)
 
 @app.post("/api/tablet/entrega")
-async def tablet_entrega(payload: dict, request: Request = None, tablet: dict = Depends(verificar_tablet_token)):
+def tablet_entrega(payload: dict, request: Request = None, tablet: dict = Depends(verificar_tablet_token)):
     with FILE_LOCK:
         dados = load_json(ARQ_DADOS, {"total_boxes":16,"lista":[],"historico":[]})
         # ETAPA 1.4 - Condomínio vem do TOKEN do tablet, nunca do payload
