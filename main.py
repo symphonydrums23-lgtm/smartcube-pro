@@ -844,7 +844,7 @@ def tablet_entrega(payload: dict, request: Request = None, tablet: dict = Depend
 
         # PATCH 29 - Entrega agora gera comando pro ESP32, igual a retirada faz
         nonce_entrega = f"ENT-{condominio_id}-{nova['box']}-{int(time.time())}-{secrets.token_hex(3).upper()}"
-            _FILA_ABERTURA.append({
+                 _FILA_ABERTURA.append({
             "box": item["box"],
             "condominio_id": condominio_id,
             "nonce": nonce_retirada,
