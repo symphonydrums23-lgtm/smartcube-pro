@@ -751,6 +751,10 @@ def tablet_info(request: Request, tablet: dict = Depends(verificar_tablet_token)
         "condominio_nome": cond.get("nome", "") if cond else "",
         "codigo_armario": cond.get("codigo_armario", "") if cond else "",
         "dupla_face": bool(cond.get("dupla_face") or cond.get("is_dupla_face") or cond.get("dupla") or cond.get("duplaFace") or False) if cond else False,
+        "blocos": cond.get("blocos", []) if cond else [],
+        "apartamentos": cond.get("apartamentos", []) if cond else [],
+        "lista_blocos": cond.get("blocos", []) if cond else [],
+        "lista_aptos": cond.get("apartamentos", []) if cond else [],
     }
 
 def get_cond_config(condominio_id):
